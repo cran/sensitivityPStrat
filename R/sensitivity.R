@@ -84,7 +84,7 @@ print.sensitivity2d <- function(x, ...) {
   cat("\nACE confidence interval:\n")
   if("analytic" %in% ci.method) {
     cat("By analytic method\n")
-    print(x$ACE.ci[,,,"analytic",])
+    print(x$ACE.ci[,"analytic",])
   }
 
   if(all(c("bootstrap", "analytic") %in% ci.method))
@@ -92,10 +92,10 @@ print.sensitivity2d <- function(x, ...) {
   
   if("bootstrap" %in% ci.method) {
     cat("By bootstrap method, N = ", attr(x, 'N.boot'), "\n",sep='')
-    print(x$ACE.ci[,,,"bootstrap",])
+    print(x$ACE.ci[,"bootstrap",])
   }
 
-  NULL
+  invisible(NULL)
 }
 
 

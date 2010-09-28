@@ -77,7 +77,7 @@ calc.v <- function(event, time) {
                     as.double(data.var$time), as.double(data.var$time),
                     as.double(data.var$diff.neg), as.double(data.var$diff.pos),
                     as.double(data.var$rank.adj), as.double(gamma0),
-                    as.double(phi), gamma2=double(nrow(data.var)), PACKAGE='sensitivity')
+                    as.double(phi), gamma2=double(nrow(data.var)), PACKAGE='sensitivityPStrat')
 
     gamma2 <- integralc[["gamma2"]]
 

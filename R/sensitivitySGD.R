@@ -100,7 +100,7 @@
   repeat {
     subIndx <- sample(indx.seq, 1000L, replace=TRUE)
     numSubEvents <- sum(s[subIndx])
-    newNumEvents <- numEvents + sumSubEvents
+    newNumEvents <- numEvents + numSubEvents
 
     if(newNumEvents > N)
       subIndx <- subIndx[cumsum(s[subIndx]) + numEvents <= N]
@@ -110,7 +110,7 @@
     if(newNumEvents >= N)
       break
 
-    numEvents <- newSubEvents
+    numEvents <- newNumEvents
   }
 
   return(index)
@@ -120,11 +120,11 @@
   sample(indx.seq, N, replace=TRUE)
 
 sensitivitySGD <- function(z, s, d, y, beta0, beta1, phi, Pi, psi, tau,
-                           time.points, ci,
-                           selection, groupings, trigger,
-                           ci.method=c("analytic", "bootstrap"), na.rm=FALSE,
-                           N.boot=100L, N.events=NULL, oneSidedTest=FALSE,
-                           twoSidedTest=TRUE,
+                           time.points, 
+                           selection, trigger, groupings,
+                           ci, ci.method=c("analytic", "bootstrap"),
+                           na.rm=FALSE, N.boot=100L, N.events=NULL,
+                           oneSidedTest=FALSE, twoSidedTest=TRUE,
                            inCore=TRUE, verbose=getOption("verbose"),
                            colsPerFile=1000L) {
   if(!require(survival))
@@ -142,104 +142,43 @@ sensitivitySGD <- function(z, s, d, y, beta0, beta1, phi, Pi, psi, tau,
 
   ci.method <- sort(unique(match.arg(ci.method, several.ok=TRUE)))
   
-  if(na.rm == TRUE) {
-    naIndex <- !(is.na(s) | is.na(z) | (s & (is.na(d) | is.na(y))))
-
-    z <- z[naIndex]
-    s <- s[naIndex]
-    d <- d[naIndex]
-    y <- y[naIndex]
-  }
-
-  if(!is.null(ci)) {
-    selected <- s
-    event <- d
-  }
-
-  s <- s == selection
-  d <- d == trigger
-  
   ErrMsg <- character(0L)
-  if(!is.null(ci)) {
+  if(isSlaveMode) {
+    ## Running in boot strap mode
+    
+  } else {
     ## Not running a boot strap mode
     ## Run error checks on variables.
-    ErrMsg <- character(0)
-
-    if(is.null(selection) || length(selection) != 1L)
-      ErrMsg <- c(ErrMsg,
-                  "'selection' argument must be a single element vector")
-
-    if(length(selection) && is.na(selection))
-      ErrMsg <- c(ErrMsg,
-                  "'selection' may not be NA")
-    else if(!(selection %in% s))
-      ErrMsg <- c(ErrMsg,
-                  "'selection' value does not appear in specified levels of 's'")
-
-    if(is.null(groupings) || length(groupings) != 2L)
-      ErrMsg <- c(ErrMsg,
-                  "'groupings' argument must be a two element vector")
-
-    if(length(groupings) && any(is.na(groupings)))
-      ErrMsg <- c(ErrMsg,
-                  "'groupings' may not contain a NA")
-
-    if(is.null(trigger) || length(trigger) != 1L)
-      ErrMsg <- c(ErrMsg,
-                  "'trigger' argument must be a single element vector")
-
-    if(length(trigger) && is.na(trigger))
-      ErrMsg <- c(ErrMsg,
-                  "'trigger' may not be NA")
-
-    if(!all(!is.na(z)))
-      ErrMsg <- c(ErrMsg,
-                  "'z' cannot contain any NA values")
-
-    if(!all(z %in% groupings | is.na(z)))
-      ErrMsg <- c(ErrMsg,
-                  "All values of 'z' must match one of the two values in 'groupings'")
-    
-    if(any(is.na(s)))
-      ErrMsg <- c(ErrMsg,
-                  "argument 's' cannot contain any NA values")
-
-    if(length(unique(s[!is.na(s)])) > 2L)
-      ErrMsg <- c(ErrMsg,
-                  "All values of 's' must match one of the two values in 'empty.principle.stratum'")
-
-    
-    if(length(unique(d[!is.na(d)])) > 2L)
-      ErrMsg <- c(ErrMsg,
-                  "argument 'd' can contain at most 2 unique non-NA values")
-
-    if(length(trigger) && all(d != trigger | is.na(d)))
-      ErrMsg <- c(ErrMsg,
-                  "Value of 'trigger' does not match any value of 'd'")
-
-    
-    if(length(selection) && !any(is.na(selection)) &&
-       any(!is.na(s) & s == selection & is.na(d)))
-      ErrMsg <- c(ErrMsg,
-                  sprintf("argument 'd' cannont contain a 'NA' value if the corresponding 's' is %s",
-                          selection))
-
-    if(length(selection) && length(trigger) &&
-       !any(is.na(c(selection, trigger))) &&
-       any(!is.na(s) & !is.na(d) & s == selection & d == trigger & is.na(y)))
-      ErrMsg <- c(ErrMsg,
-                  sprintf("argument 'y' cannont contain a NA value if the corresponding 's' is %s and 'd' is %s",
-                          selection, trigger))
+    ErrMsg <- NULL
+    ErrMsg <- c(.CheckSelection(selection, s),
+                .CheckGroupings(groupings),
+                .CheckTrigger(trigger, d),
+                .CheckLength(z=z, s=s, d=d, y=y),
+                .CheckZ(z, groupings, na.rm),
+                .CheckS(s, na.rm=na.rm),
+                .CheckY(y, s, selection),
+                .CheckD(d=d, s=s, selection=selection))
     
     if(length(ErrMsg) > 0L)
       stop(paste(ErrMsg, collapse="\n  "))
+
+    
+    if(na.rm == TRUE) {
+      naIndex <- !(is.na(s) | is.na(z) | (s & (is.na(d) | is.na(y))))
+
+      z <- z[naIndex]
+      s <- s[naIndex]
+      d <- d[naIndex]
+      y <- y[naIndex]
+    }
+
+    s <- s == selection
+    d <- d == trigger
+    
+    z <- z == groupings[2L]
+
   }
   
-  s <- s == selection
-  d <- d == trigger
-  
-  z <- z == groupings[2L]
-
   ## N  - number subjects
   ## N0 - number of subjects in group 0
   ## N1 - number of subjects in group 1
@@ -349,7 +288,7 @@ sensitivitySGD <- function(z, s, d, y, beta0, beta1, phi, Pi, psi, tau,
   }
   
   
-  if(is.null(ci))
+  if(isSlaveMode)
     return(list(SCE = SCE))
 
   cdfs <- list(alphahat0=sapply(coeffs, FUN=function(coeff) sapply(coeff$beta0.coeff, FUN=function(b) b$alphahat)),
@@ -372,10 +311,10 @@ sensitivitySGD <- function(z, s, d, y, beta0, beta1, phi, Pi, psi, tau,
     ci.probs <- c(ci.probs, ci)
   }
 
-  if(ci.method == "analytic") {
+  if("analytic" %in% ci.method) {
     stop("Analytic method is not currently implemented")
   }
-  if(ci.method == "bootstrap") {
+  if("bootstrap" %in% ci.method) {
     current.fun <- sys.function()
 
     N.boot <- as.integer(N.boot)
@@ -443,7 +382,7 @@ sensitivitySGD <- function(z, s, d, y, beta0, beta1, phi, Pi, psi, tau,
       needFiles <- (SCE.length %/% colsPerFile)
       remainder <- SCE.length %% colsPerFile
 
-      filesNCols <- rep(c(colsPreFile, remainder), times=c(needFiles, remainder > 0L))
+      filesNCols <- rep(c(colsPerFile, remainder), times=c(needFiles, remainder > 0L))
       readWidths <- filesNCols*recordWidth
       outFilenames <- sprintf("%s_split_%0*d", tmpfile,
                               nchar(length(readWidths)),

@@ -10,8 +10,8 @@
 .calc.time.seq.index <- function(time.points, times) {
   calc.time.seq <- function(time.point, times) sum(times <= time.point)
   
-  q.index <- structure(lapply(time.points, times, FUN=calc.time.seq),
-                       names=time.points)
+  q.index <- unlist(lapply(time.points, times, FUN=calc.time.seq))
+  names(q.index) <- time.points
 
   return(q.index)
 }
@@ -26,7 +26,7 @@
 }
 
 .calc.beta.tplus.list <- function(beta, t0, tau) {
-  tplus0 <- c(min(t0, tau), tau)
+  tplus0 <- c(pmin(t0, tau), tau)
 
   calc.beta.tplus <- function(beta,time)
     if(is.finite(beta)) return(beta*time) else return(beta)
@@ -49,8 +49,8 @@
 .calcSGL.coeff.smp <- function(beta, KM0, dF0, tau, time.points, RR) {
   com <- .calcSGLCoeffCommon(beta, KM0, tau, time.points)
   
-  return(mapply(FUN=calcSGLBetaCoeffBasic,
-                i=com$i, beta.tplus=com$beta.tplus,
+  return(mapply(FUN=.calcSGLBetaCoeffBasic,
+                i=com$i, beta=beta, beta.tplus=com$beta.tplus,
                 MoreArgs=list(q.index=com$q.index, KMAns=com$KMAns, dF0=dF0,
                   RR=RR),
                 SIMPLIFY=FALSE, USE.NAMES=FALSE))
@@ -61,8 +61,8 @@
 
   com <- .calcSGLCoeffCommon(beta, KM0, tau, time.points)
 
-  coeffs <- mapply(FUN=calcSGLBetaCoeffAdv,
-                   i=com$i, beta.tplus=com$beta.tplus,
+  coeffs <- mapply(FUN=.calcSGLBetaCoeffAdv,
+                   i=com$i, beta=beta, beta.tplus=com$beta.tplus,
                    MoreArgs=list(q.list=com$q.list, q.index=com$q.index,
                      KMAns=com$KMAns, dF0=dF0, p0=p0, n0=n0, N0=N0,
                      n1=n1, N1=N1, RR=RR, len.F=length(KM0$t)),
@@ -85,7 +85,7 @@
           ## dgdF where j == l
           (sum.w.dF.not.qseq*w[q.index] + sum.w.dF.qseq*w[q.index+1]),
           ## dgdF where j > l
-          sum.w.dF.qseq*diff.w[!q.seq]) / (sum.w.dF * sum.w.dF)
+          sum.w.dF.qseq*diff.w[!q.seq[-length(q.seq)]]) / (sum.w.dF * sum.w.dF)
 
   return(dg)
 }
@@ -208,7 +208,7 @@
   A1 <- sum(-N1 * w.1mw.dF0 * p0)
   B1 <- -N1*p0*-diff.w
 
-  dg <- mapply(FUN=.calcSGL.g, q.index=q.index, q.list=q.list,
+  dg <- mapply(FUN=.calcSGL.g, q.index=q.index, q.seq=q.list,
                  MoreArgs=list(w, w.dF0, w.1mw.dF0,
                  sum.w.dF0, sum.w.1mw.dF0, diff.w, F0ai),
                  SIMPLIFY=FALSE)
@@ -220,12 +220,12 @@
 .makeBootstrapLenIndx <- function(s, indx.seq, N)
   sample(indx.seq, N, replace=TRUE)
 
-sensitivitySGL <- function(z, s, d, y, beta, tau, time.points, ci=0.95,
-                           selection, groupings, empty.principle.stratum,
-                           trigger, ci.method=c("analytic", "bootstrap"),
-                           na.rm=FALSE, N.boot=100L,
-                           oneSidedTest=FALSE, twoSidedTest=TRUE,
-                           verbose=getOption("verbose")) {
+sensitivitySGL <- function(z, s, d, y, beta, tau, time.points,
+                           selection, trigger, groupings,
+                           empty.principal.stratum,
+                           ci=0.95, ci.method=c("analytic", "bootstrap"),
+                           na.rm=FALSE, N.boot=100L, oneSidedTest=FALSE,
+                           twoSidedTest=TRUE, verbose=getOption("verbose")) {
   if(!require(survival))
     stop("require's the survival package to function")
 
@@ -234,70 +234,50 @@ sensitivitySGL <- function(z, s, d, y, beta, tau, time.points, ci=0.95,
   ## d - subject had event
   ## y - time until event ocurred
 
-  ci.method <- sort(unique(match.arg(ci.method, several.ok=TRUE)))
-  
-  if(na.rm == TRUE) {
-    naIndex <- !(is.na(s) | is.na(z) | (s & (is.na(d) | is.na(y))))
+  if(!missing(ci.method) && is.null(ci.method))
+    isSlaveMode <- TRUE
+  else
+    isSlaveMode <- FALSE
 
-    z <- z[naIndex]
-    s <- s[naIndex]
-    d <- d[naIndex]
-    y <- y[naIndex]
+  if(!isSlaveMode) {
+    ## Not running a boot strap mode
+    ## Run error checks on variables.
+    ErrMsg <- c(.CheckEmptyPrincipalStratum(empty.principal.stratum),
+                .CheckSelection(selection, s, empty.principal.stratum),
+                .CheckGroupings(groupings),
+                .CheckTrigger(trigger, d),
+                .CheckLength(z=z, s=s, y=y),
+                .CheckZ(z, groupings, na.rm),
+                .CheckS(s, empty.principal.stratum, na.rm),
+                .CheckY(y, s, selection),
+                .CheckD(d=d, s=s, selection=selection))
+
+    if(length(ErrMsg) > 0L)
+      stop(paste(ErrMsg, collapse="\n  "))
+
+
+    if(na.rm == TRUE) {
+      naIndex <- !(is.na(s) | is.na(z) | (s & (is.na(d) | is.na(y))))
+
+      z <- z[naIndex]
+      s <- s[naIndex]
+      d <- d[naIndex]
+      y <- y[naIndex]
+    }
+
+    GroupReverse <- FALSE
+    if(empty.principal.stratum[1L] == selection) {
+      z <- ifelse(z == groupings[1L], TRUE, ifelse(z == groupings[2L], FALSE, NA))
+      GroupReverse <- TRUE
+    } else if(empty.principal.stratum[2L] == selection)
+      z <- ifelse(z == groupings[2L], TRUE, ifelse(z == groupings[1L], FALSE, NA))
+    s <- s == selection
+    d <- d == trigger
+  } else {
+    GroupReverse <- ci
   }
   
-  ErrMsg <- character(0)
-  if(missing(selection) || is.null(selection))
-    ErrMsg <- c(ErrMsg, "'selection' argument must be a single element vector")
-  else if(!selection %in% s)
-    ErrMsg <- c(ErrMsg, "value of 'selection' is not included in 's'")
-  
-  if(missing(empty.principle.stratum) || is.null(empty.principle.stratum))
-    ErrMsg <- c(ErrMsg, "'empty.principle.stratum' argument must be a two element vector")
-  else if(!all(empty.principle.stratum %in% s))
-    ErrMsg <- c(ErrMsg, "Specified levels of 's' from 'empty.principle.stratum' do not match supplied values of 's'")
-
-  if(missing(groupings) || is.null(groupings))
-    ErrMsg <- c(ErrMsg, "'groupings' argument must be a two element vector")
-  else if(!all(groupings %in% z))
-    ErrMsg <- c(ErrMsg, "Specified levels of 'z' from 'groupings' do not match supplied values of 'z'")
-
-  if(missing(trigger) || is.null(trigger) || length(trigger) > 1)
-    ErrMsg <- c(ErrMsg, "'trigger' argument must be a single value")
-  else if(!trigger %in% d)
-    ErrMsg <- c(ErrMsg, "Specified level of 'd' from 'trigger' does not match supplied values of 'd'")
-
-  if(any(is.na(z)))
-    ErrMsg <- c(ErrMsg, "argument 'z' cannot contain any NA values")
-  else if(length(unique(z)) != 2L)
-    ErrMsg <- c(ErrMsg, "argument 'z' can only contain 2 unique values")
-  
-  if(any(is.na(s)))
-    ErrMsg <- c(ErrMsg, "argument 's' cannot contain any NA values")
-  else if(length(unique(s)) > 2L)
-    ErrMsg <- c(ErrMsg, "argument 's' can contain at most 2 unique values")
-
-  s <- s == selection
-  
-  if(any(s & is.na(d)))
-     ErrMsg <- c(ErrMsg, sprintf("argument 'd' cannont contain any NA value if the corisponding 's' is %s", selection))
-  
-  if(length(unique(d[!is.na(d)])) > 2L)
-    ErrMsg <- c(ErrMsg, "argument 'd' can contain at most 2 unique values")
-  
-  if(any(s & is.na(y)))
-     ErrMsg <- c(ErrMsg, sprintf("argument 'y' cannont contain any NA value if the corisponding 's' is %s", selection))
-  
-  if(length(ErrMsg) > 0L)
-    stop(paste(ErrMsg, collapse="\n  "))
-
-
-
-  if(empty.principle.stratum[1L] == selection)
-    z <- ifelse(z == groupings[1L], TRUE, ifelse(z == groupings[2L], FALSE, NA))
-  else if(empty.principle.stratum[2L] == selection)
-    z <- ifelse(z == groupings[2L], TRUE, ifelse(z == groupings[1L], FALSE, NA))
-                
-  d <- d == trigger
+  ci.method <- sort(unique(match.arg(ci.method, several.ok=TRUE)))
   
   ## N  - number subjects
   ## N0 - number of subjects in group 0
@@ -343,7 +323,7 @@ sensitivitySGL <- function(z, s, d, y, beta, tau, time.points, ci=0.95,
   beta <- unique(sort(beta))
 
   timePointsOrig <- time.points
-  time.points <- unique(sort(beta))
+  time.points <- unique(sort(time.points))
 
   if(doAnalyticCi) {
     coeffs0 <- .calcSGL.coeff.adv(beta=beta, KM0=KM0, dF0=dF0, p0=p0,
@@ -360,20 +340,20 @@ sensitivitySGL <- function(z, s, d, y, beta, tau, time.points, ci=0.95,
   SCE.length <- prod(SCE.dim)
   SCE.dimnames <- list(time.points=as.character(time.points),
                        beta=as.character(beta))
-  SCE <- array(numeric(SCE.length), dim=SCE.dim)
+  SCE <- array(numeric(SCE.length), dim=SCE.dim, dimnames=SCE.dimnames)
   
   for(coeff0 in coeffs0) {
     SCE[,coeff0$i] <- coeff0$Fas - coeff1$Fas
   }
   
-  if(is.null(ci)) return(list(SCE=SCE))
+  if(isSlaveMode) return(list(SCE=SCE))
   
   SCE.var.dim <- c(SCE.dim, length(ci.method))
   SCE.var.dimnames <- c(SCE.dimnames, list(ci.method=ci.method))
   
   SCE.var <- array(numeric(0),
-                    dim=c(SCE.dim, length(ci.method)),
-                    dimnames=c(SCE.dimnames, list(ci.method)))
+                    dim=SCE.var.dim,
+                    dimnames=SCE.var.dimnames)
 
   if(doAnalyticCi) {
     Gamma <- Omega <- matrix(0, ncol=len.total, nrow=len.total)
@@ -437,10 +417,10 @@ sensitivitySGL <- function(z, s, d, y, beta, tau, time.points, ci=0.95,
     VmF0 <- V - KM0$Fas
 
     Omega[1, b.col1] <- rowSums(VmF0 * (1-p0))
-    sumCrossUpperTri(Omega[b.col1,b.col1]) <- VmF0
+    .sumCrossUpperTri(Omega[b.col1,b.col1]) <- VmF0
     
     ## Fold Omega
-    Omega <- foldUpperTri(Omega)
+    Omega <- .foldUpperTri(Omega)
 
     ## populate Gamma matrix
     diag(Gamma) <- rep(c(-N0, -N1, -n0), times=c(1,1,len.t0))
@@ -458,7 +438,7 @@ sensitivitySGL <- function(z, s, d, y, beta, tau, time.points, ci=0.95,
         vartheta <- crossprod(IGamma, Omega) %*% IGamma / N
 
         SCE.var[,coeff0$i,'analytic'] <- sapply(coeff0$dg, function(dg) {
-          (dg %*% vartheta %*% dg) }) / N + coeff1$SCE.var
+          (dg %*% vartheta %*% dg) }) / N + coeff1$Fas.var
       }
     }
   }
@@ -480,16 +460,18 @@ sensitivitySGL <- function(z, s, d, y, beta, tau, time.points, ci=0.95,
   SCE.ci.dim <- c(ci.probsLen, SCE.var.dim)
   SCE.ci.dimnames <- c(list(ci.probs=as.character(ci.probs)), SCE.var.dimnames)
   
-  SCE.ci <- matrix(numeric(SCE.length * length(ci.method) * ci.probsLen),
-                   ncol=length(ci.method),
-                   dimnames=list(NULL,ci.method=ci.method))
+  SCE.ci <- array(numeric(0),
+                  dim=SCE.ci.dim,
+                  dimnames=SCE.ci.dimnames)
   
   if(doAnalyticCi) {
     SCE.rep <- rep.int(ci.probsLen, times=SCE.length)
 
-    SCE.ci[,'analytic'] <- rep.int(SCE, times=SCE.rep) + 
-      rep.int(qnorm(ci.probs), times=SCE.length) * 
-        rep.int(sqrt(SCE.var[,,'analytic']), times=SCE.rep)    
+    SCE.ci[,,,'analytic'] <- array(rep.int(SCE, times=SCE.rep) + 
+                                   rep.int(qnorm(ci.probs), times=SCE.length) * 
+                                   rep.int(sqrt(SCE.var[,,'analytic']),
+                                           times=SCE.rep),
+                                   dim=c(ci.probsLen, SCE.dim))
   }
   
   if(doBootStrapCi) {
@@ -506,10 +488,11 @@ sensitivitySGL <- function(z, s, d, y, beta, tau, time.points, ci=0.95,
                                    tau=tau,
                                    selection=TRUE,
                                    groupings=c(FALSE,TRUE),
-                                   empty.principle.stratum=c(FALSE,TRUE),
+                                   empty.principal.stratum=c(FALSE,TRUE),
                                    trigger=TRUE,
                                    time.points=time.points,
-                                   ci=NULL)$SCE)
+                                   ci.method=NULL,
+                                   ci=GroupReverse)$SCE)
       if(verbose) cat(".")
       return(ans)
     }
@@ -525,22 +508,27 @@ sensitivitySGL <- function(z, s, d, y, beta, tau, time.points, ci=0.95,
                   FUN=function(x) return(c(var(x), quantile(x, probs=ci.probs))))
     if(verbose) cat("\n")
 
-    str(vals)
     SCE.var.boot = vals[1,,drop=FALSE]
     SCE.ci.boot = vals[-1,,drop=FALSE]
-
+    
     dim(SCE.var.boot) <- SCE.dim
+    dim(SCE.ci.boot) <- c(ci.probsLen, SCE.dim)
 
     SCE.var[,,'bootstrap'] <- SCE.var.boot
 
-    SCE.ci[,'bootstrap'] <- vals[-1,]
+    str(SCE.ci.boot)
+    str(SCE.ci)
+    SCE.ci[,,,'bootstrap'] <- SCE.ci.boot
   }
 
   tpIndex <- match(time.points, timePointsOrig)
   betaIndex <- match(beta, timePointsOrig)
+  str(SCE)
+  str(SCE.var)
+  str(SCE.ci)
   ans <- list(SCE=SCE[tpIndex,betaIndex,drop=FALSE],
-              SCE.var=SCE.var[tpIndex,betaIndex,,drop=FALSE],
-              SCE.ci=SCE.ci[tpIndex, betaIndex,,,drop=FALSE],
+              SCE.var=SCE.var[tpIndex, betaIndex, ,drop=FALSE],
+              SCE.ci=SCE.ci[,tpIndex, betaIndex, , drop=FALSE],
               beta=betaOrig)
   
   class(ans) <- "plot.sensitivity2.5d"

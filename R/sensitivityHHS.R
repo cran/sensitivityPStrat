@@ -90,7 +90,7 @@
 }  
 
 sensitivityHHS <- function(z, s, y, bound=c("upper","lower"),
-                           selection, groupings, empty.principle.stratum,
+                           selection, groupings, empty.principal.stratum,
                            ci=0.95, ci.method=c("bootstrap", "analytic"),
                            na.rm=FALSE, N.boot=100, oneSidedTest = FALSE,
                            twoSidedTest = TRUE)
@@ -103,32 +103,24 @@ sensitivityHHS <- function(z, s, y, bound=c("upper","lower"),
   if(!isSlaveMode) {
     ## Not running a boot strap mode
     ## Run error checks on variables.
-    ErrMsg <- c(.CheckEmptyPrincipleStratum(),
-                .CheckSelection(),
-                .CheckGroupings(),
-                .CheckZ(),
-                .CheckS(),
-                .CheckY())
+    ErrMsg <- c(.CheckEmptyPrincipalStratum(empty.principal.stratum),
+                .CheckSelection(selection, s, empty.principal.stratum),
+                .CheckGroupings(groupings),
+                .CheckLength(z=z, s=s, y=y),
+                .CheckZ(z, groupings, na.rm),
+                .CheckS(s, empty.principal.stratum, na.rm),
+                .CheckY(y, s, selection))
 
-    ## check that length is the same
-    var.len <- c(if(!missing(z)) length(z),
-                 if(!missing(s)) length(s),
-                 if(!missing(y)) length(y))
-
-    if(length(unique(var.len)) > 1L)
-        ErrMsg <- c(ErrMsg,
-                    "'z', 's', 'y' are not all the same length")      
-    
     if(length(ErrMsg) > 0L)
       stop(paste(ErrMsg, collapse="\n  "))
 
     s <- s == selection
 
     GroupReverse <- FALSE
-    if(empty.principle.stratum[1] == selection) {
+    if(empty.principal.stratum[1] == selection) {
       z <- z == groupings[1]
       GroupReverse <- TRUE
-    } else if(empty.principle.stratum[2] == selection)
+    } else if(empty.principal.stratum[2] == selection)
       z <- z == groupings[2]
   } else {
     GroupReverse <- ci
@@ -182,9 +174,13 @@ sensitivityHHS <- function(z, s, y, bound=c("upper","lower"),
     ACE['lower'] <- LowerObj$ACE
     FnAs0['lower'] <- LowerObj$FnAs0
   }
-  
+
   if(isSlaveMode) {
-    return(list(ACE=ACE))
+    if(GroupReverse) {
+      return(list(ACE=ACE, Fas0=datObj$Fn1, Fas1=FnAs0))
+    } else {
+      return(list(ACE=ACE, Fas0=FnAs0, Fas1=datObj$Fn1))
+    }      
   }
 
   if(GroupReverse) {
@@ -264,8 +260,8 @@ sensitivityHHS <- function(z, s, y, bound=c("upper","lower"),
                           ACE.var=ACE.var), cdfs),
                    class=c("sensitivity2d", "sensitivity"),
                    parameters=list(z0=groupings[1], z1=groupings[2],
-                     selected=selection, s0=empty.principle.stratum[1],
-                     s1=empty.principle.stratum[2]))
+                     selected=selection, s0=empty.principal.stratum[1],
+                     s1=empty.principal.stratum[2]))
 
   if('bootstrap' %in% ci.method)
     attr(ans, 'N.boot') <- N.boot

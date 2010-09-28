@@ -93,7 +93,7 @@ sensitivitySGDFollowup <- function(z, s.star, v, d, y, beta0, beta1,
                                    phi, Pi, psi, tau, followup.time,
                                    time.points, ci=0.95,
                                    selection, groupings,
-                                   empty.principle.stratum, trigger,
+                                   empty.principal.stratum, trigger,
                                    ci.method=c("analytic", "bootstrap"),
                                    na.rm=FALSE, N.boot=100L, N.events=NULL,
                                    oneSidedTest=FALSE, twoSidedTest=TRUE,
@@ -121,14 +121,14 @@ sensitivitySGDFollowup <- function(z, s.star, v, d, y, beta0, beta1,
 
   if(!is.null(ci)) {
     ErrMsg <- character(0)
-    if(missing(empty.principle.stratum) || is.null(empty.principle.stratum) ||
-       length(empty.principle.stratum) != 2L)
-      ErrMsg <- c(ErrMsg, "'empty.principle.stratum' argument must be a two element vector")
+    if(missing(empty.principal.stratum) || is.null(empty.principal.stratum) ||
+       length(empty.principal.stratum) != 2L)
+      ErrMsg <- c(ErrMsg, "'empty.principal.stratum' argument must be a two element vector")
 
     if(missing(selection) || is.null(selection) || length(selection) != 1L)
       ErrMsg <- c(ErrMsg, "'selection' argument must be a single element vector")
-    else if(!(selection %in% empty.principle.stratum))
-      ErrMsg <- c(ErrMsg, "'selection' value does not appear in specified levels of 's' from 'empty.principle.stratum'")
+    else if(!(selection %in% empty.principal.stratum))
+      ErrMsg <- c(ErrMsg, "'selection' value does not appear in specified levels of 's' from 'empty.principal.stratum'")
 
     if(missing(groupings) || is.null(groupings) || length(groupings) != 2L)
       ErrMsg <- c(ErrMsg, "'groupings' argument must be a two element vector")
@@ -148,8 +148,8 @@ sensitivitySGDFollowup <- function(z, s.star, v, d, y, beta0, beta1,
       ErrMsg <- c(ErrMsg, "argument 's' cannot contain any NA values")
     else if(length(unique(s.star)) > 2L)
       ErrMsg <- c(ErrMsg, "argument 's' can contain at most 2 unique values")
-    else if(sum(empty.principle.stratum %in% s.star) < 1L)
-      ErrMsg <- c(ErrMsg, "None of the specified levels of 's' from 'empty.principle.stratum' match supplied values of 's'")
+    else if(sum(empty.principal.stratum %in% s.star) < 1L)
+      ErrMsg <- c(ErrMsg, "None of the specified levels of 's' from 'empty.principal.stratum' match supplied values of 's'")
 
     if(any(s.star == selection & is.na(d)))
       ErrMsg <- c(ErrMsg, sprintf("argument 'd' cannont contain any NA value if the corisponding 's' is %s", selection))
@@ -171,9 +171,9 @@ sensitivitySGDFollowup <- function(z, s.star, v, d, y, beta0, beta1,
 
   s <- (v < followup.time) & s.star
   
-  if(empty.principle.stratum[1L] == selection)
+  if(empty.principal.stratum[1L] == selection)
     z <- z == groupings[1L]
-  else if(empty.principle.stratum[2L] == selection)
+  else if(empty.principal.stratum[2L] == selection)
     z <- z == groupings[2L]
 
   ## N  - number subjects
@@ -342,7 +342,7 @@ sensitivitySGDFollowup <- function(z, s.star, v, d, y, beta0, beta1,
                                    tau=tau, followup.time=followup.time,
                                    selection=TRUE,
                                    groupings=c(FALSE,TRUE),
-                                   empty.principle.stratum=c(FALSE,TRUE),
+                                   empty.principal.stratum=c(FALSE,TRUE),
                                    trigger=TRUE,
                                    time.points=time.points,
                                    ci=NULL)$SCE)
@@ -393,7 +393,7 @@ sensitivitySGDFollowup <- function(z, s.star, v, d, y, beta0, beta1,
       needFiles <- (SCE.length %/% colsPerFile)
       remainder <- SCE.length %% colsPerFile
 
-      filesNCols <- rep(c(colsPreFile, remainder), times=c(needFiles, remainder > 0L))
+      filesNCols <- rep(c(colsPerFile, remainder), times=c(needFiles, remainder > 0L))
       readWidths <- filesNCols*recordWidth
       outFilenames <- sprintf("%s_split_%0*d", tmpfile,
                               nchar(length(readWidths)),

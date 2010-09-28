@@ -313,7 +313,7 @@ sensitivityJR <- function(z, s, y, beta0, beta1, phi, Pi, psi,
                      (z)*s*(1/(1+exp(-alphahat1[j,k] - beta1[j]*y)) - Pi[k]/p1),
                      (1-z)*s*(mu0[i,k] - y*p0/Pi[k]/(1+exp(-alphahat0[i,k] - beta0[i]*y))),
                      (z)*s*(mu1[j,k] - y*p1/Pi[k]/(1+exp(-alphahat1[j,k] - beta1[j]*y))))
-          sumCrossUpperTri(Omega) <- U
+          .sumCrossUpperTri(Omega) <- U
           Omega <- Omega / N
           Omega[lower.tri(Omega)] <- t(Omega)[lower.tri(Omega)]
 

@@ -1,7 +1,7 @@
 \name{calc.v}
 \alias{calc.v}
 \title{
-  Calculates the v matrix.
+  Calculates the v matrix used in the estimation of standard errors in sensitivitySGL.
 }
 \description{
   Calculates the v matrix.
