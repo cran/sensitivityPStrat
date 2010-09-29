@@ -522,10 +522,7 @@ sensitivitySGL <- function(z, s, d, y, beta, tau, time.points,
   }
 
   tpIndex <- match(time.points, timePointsOrig)
-  betaIndex <- match(beta, timePointsOrig)
-  str(SCE)
-  str(SCE.var)
-  str(SCE.ci)
+  betaIndex <- match(beta, betaOrig)
   ans <- list(SCE=SCE[tpIndex,betaIndex,drop=FALSE],
               SCE.var=SCE.var[tpIndex, betaIndex, ,drop=FALSE],
               SCE.ci=SCE.ci[,tpIndex, betaIndex, , drop=FALSE],

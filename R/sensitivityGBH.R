@@ -8,22 +8,14 @@ sensitivityGBH <- function(z, s, y, beta, selection, groupings,
   doInfinite <- any(is.infinite(beta))
   doFinite <- any(is.finite(beta))
 
-  if(doInfinite && !doFinite) {
-    funCall <- match.call()
-    funCall$beta <- c("upper", "lower")[match(beta, c(-Inf, Inf), nomatch=0)]
-    names(funCall)[names(funCall) == "beta"] <- "bound"
+  ## if(doInfinite && !doFinite) {
+  ##   funCall <- match.call()
+  ##   funCall$beta <- c("upper", "lower")[match(beta, c(-Inf, Inf), nomatch=0)]
+  ##   names(funCall)[names(funCall) == "beta"] <- "bound"
+  ##   funCall[[1]] <- as.name("sensitivityHHS")
 
-    return(eval(c))
-  }
-
-  if(na.rm == TRUE) {
-    naIndex <- !(is.na(s) | is.na(z))
-
-    z <- z[naIndex]
-    s <- s[naIndex]
-    y <- y[naIndex]
-  }
-  
+  ##   return(eval(funCall, envir=parent.frame()))
+  ## }
 
   if(!missing(ci.method) && is.null(ci.method))
     isSlaveMode <- TRUE
@@ -33,121 +25,25 @@ sensitivityGBH <- function(z, s, y, beta, selection, groupings,
   if(!isSlaveMode) {
     ## Not running a boot strap mode
     ## Run error checks on variables.
-    ErrMsg <- character(0)
+    ErrMsg <- c(.CheckEmptyPrincipalStratum(empty.principal.stratum),
+                .CheckSelection(selection, s, empty.principal.stratum),
+                .CheckGroupings(groupings),
+                .CheckLength(z=z, s=s, y=y),
+                .CheckZ(z, groupings, na.rm),
+                .CheckS(s, empty.principal.stratum, na.rm),
+                .CheckY(y, s, selection))
 
-    isZMissing <- missing(z)
-    isSMissing <- missing(s)
-    isYMissing <- missing(y)
-
-    isSelectionMissing <- missing(selection)
-    isGroupingsMissing <- missing(groupings)
-    isEmptyPrincipalStratumMissing <- missing(empty.principal.stratum)
-    
-    if(isEmptyPrincipalStratumMissing) 
-      ErrMsg <- c(ErrMsg, "'empty.principal.stratum' argument must be supplied")
-    else {
-      if(is.null(empty.principal.stratum) ||
-         length(empty.principal.stratum) != 2L)
-      ErrMsg <- c(ErrMsg,
-                  "'empty.principal.stratum' argument must be a two element vector")
-
-      if(length(empty.principal.stratum) &&
-         any(is.na(empty.principal.stratum)))
-      ErrMsg <- c(ErrMsg,
-                  "'empty.principal.stratum' may not contain a NA")
-
-    }
-
-    if(isSelectionMissing)
-      ErrMsg <- c(ErrMsg, "'selection' argument must be supplied")
-    else {
-      if(length(selection) > 0L && any(is.na(selection)))
-        ErrMsg <- c(ErrMsg,
-                    "'selection' may not be NA")
-
-      if(length(selection) != 1L)
-        ErrMsg <- c(ErrMsg,
-                    "'selection' argument must be a single element vector")
-      
-      if(length(selection) > 0L && !isEmptyPrincipalStratumMissing &&
-         !all((selection %in% empty.principal.stratum) | is.na(selection)))
-        ErrMsg <- c(ErrMsg,
-                    "'selection' value does not appear in specified levels of 's' from 'empty.principal.stratum'")
-    }
-
-    if(isGroupingsMissing)
-      ErrMsg <- c(ErrMsg,
-                  "'groupings' argument must be supplied")
-    else {
-      if(is.null(groupings) || length(groupings) != 2L)
-        ErrMsg <- c(ErrMsg,
-                    "'groupings' argument must be a two element vector")
-
-      if(length(groupings) && any(is.na(groupings)))
-        ErrMsg <- c(ErrMsg,
-                    "'groupings' may not contain a NA")
-    }
-    
-    vectorLength <- NULL
-    SameLength <- TRUE
-
-    if(isZMissing)
-      ErrMsg <- c(ErrMsg,
-                  "'z' argument must be supplied")
-    else {
-      if(any(is.na(z)) && na.rm)
-        ErrMsg <- c(ErrMsg,
-                    "'z' cannot contain any NA values")
-
-      if(!isGroupingsMissing && !all(z %in% groupings | is.na(z)))
-        ErrMsg <- c(ErrMsg,
-                    "All values of 'z' must match one of the two values in 'groupings'")
-
-      if(is.null(vectorLength))
-        vectorLength <- length(z)
-    }
-
-    if(isSMissing)
-      ErrMsg <- c(ErrMsg,
-                  "'s' argument must be supplied")
-    else {
-      if(any(is.na(s)) && !na.rm)
-        ErrMsg <- c(ErrMsg,
-                    "argument 's' cannot contain any NA values")
-      
-      if(!isEmptyPrincipalStratumMissing &&
-         !all(s %in% empty.principal.stratum | is.na(s)))
-        ErrMsg <- c(ErrMsg,
-                    "All values of 's' must match one of the two values in 'empty.principal.stratum'")
-
-      if(is.null(vectorLength))
-        vectorLength <- length(s)
-      else if(SameLength == TRUE && vectorLength != length(s))
-        SameLength <- FALSE
-    }
-
-    if(isYMissing) 
-      ErrMsg <- c(ErrMsg,
-                  "'y' argument must be supplied")
-    else {
-      if(is.null(vectorLength))
-        vectorLength <- length(y)
-      else if(SameLength == TRUE && vectorLength != length(y))
-        SameLength <- FALSE
-
-      if(!isSelectionMissing && !isSMissing && length(s) == length(y) &&
-         any(s %in% selection && !is.na(s) && is.na(y)))
-         ErrMsg <- c(ErrMsg,
-                     sprintf("argument 'y' cannont contain a NA value if the corresponding 's' is %s",
-                          paste(selection, collapse=",")))
-    }
-
-    if(SameLength == FALSE)
-        ErrMsg <- c(ErrMsg,
-                    "'z', 's', 'y' are not all the same length")
-    
     if(length(ErrMsg) > 0L)
       stop(paste(ErrMsg, collapse="\n  "))
+
+    if(na.rm == TRUE) {
+      naIndex <- !(is.na(s) | is.na(z))
+
+      z <- z[naIndex]
+      s <- s[naIndex]
+      y <- y[naIndex]
+    }
+    
 
     s <- s == selection
 
@@ -163,13 +59,6 @@ sensitivityGBH <- function(z, s, y, beta, selection, groupings,
 
   ci.method <- sort(unique(match.arg(ci.method, several.ok=TRUE)))
   n.method <- length(ci.method)
-
-  if(na.rm == TRUE) {
-    naIndex <- !(is.na(s) | is.na(z) | (s & is.na(y)))
-    z <- z[naIndex]
-    s <- s[naIndex]
-    y <- y[naIndex]
-  }
 
   if(any(is.na(z) | is.na(s)))
     stop("s, z cannot contain any NA values")

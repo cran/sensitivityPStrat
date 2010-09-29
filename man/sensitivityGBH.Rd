@@ -162,6 +162,39 @@ ans<-with(vaccine.trial,
                     N.boot=1000)
          )
 ans
+\dontshow{
+stopifnot(is.list(ans))
+stopifnot(inherits(ans,"sensitivity2d"))
+}
+
+ans<-with(vaccine.trial,
+          sensitivityGBH(z=treatment,s=hiv.outcome,y=logVL,
+                    beta=c(-Inf, 0,.25,.5,.75,1,Inf),                      
+                    selection="infected",
+                    groupings=c("placebo","vaccine"),
+                    empty.principal.stratum=c("not infected","infected"),
+                    ci.method="bootstrap",
+                    N.boot=1000)
+         )
+ans
+\dontshow{
+stopifnot(is.list(ans))
+stopifnot(inherits(ans,"sensitivity2d"))
+}
+ans<-with(vaccine.trial,
+          sensitivityGBH(z=treatment,s=hiv.outcome,y=logVL,
+                    beta=-Inf,                      
+                    selection="infected",
+                    groupings=c("placebo","vaccine"),
+                    empty.principal.stratum=c("not infected","infected"),
+                    ci.method="bootstrap",
+                    N.boot=1000)
+         )
+ans
+\dontshow{
+stopifnot(is.list(ans))
+stopifnot(inherits(ans,"sensitivity2d"))
+}
 }
 \keyword{design}
 % Add one or more standard keywords, see file 'KEYWORDS' in the
