@@ -1,17 +1,20 @@
 useDynLib(sensitivityPStrat, .registration=TRUE)
 
 export(calc.v, sensitivityHHS, sensitivityGBH, sensitivityJR, sensitivitySGL,
-       sensitivitySGD)
+       sensitivitySGD, plot.sensitivity.1.0d, plot.sensitivity.2.0d,
+       plot.sensitivity.1.1d, print.sensitivity.0d, print.sensitivity.1d,
+       funVector, funArray)
+
 import(graphics)
 import(stats)
 import(survival)
 
-
-S3method("[", funArray)
 S3method("[", funVector)
+S3method("[", funArray)
 S3method("[<-", funArray)
 S3method("[<-", funVector)
-S3method(plot, sensitivity1d)
-S3method(plot, sensitivity2d)
-S3method(print, sensitivity1d)
-S3method(print, sensitivity2d)
+S3method(plot, sensitivity.2.0d)
+S3method(plot, sensitivity.1.0d)
+S3method(plot, sensitivity.1.1d)
+S3method(print, sensitivity.0d)
+S3method(print, sensitivity.1d)

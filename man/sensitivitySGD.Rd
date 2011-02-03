@@ -10,12 +10,15 @@
   (in press).
 }
 \usage{
-sensitivitySGD(z, s, d, y, beta0, beta1, phi, Pi, psi, tau,
+sensitivitySGD(z, s, d, y, v, beta0, beta1, phi, Pi, psi, tau,
                time.points, selection, trigger, groupings,
-               ci, ci.method = c("analytic", "bootstrap"),
+               followup.time,
+               ci=0.95, ci.method = c("bootstrap", "analytic"),
                na.rm = FALSE, N.boot = 100L, N.events = NULL,
+               interval = c(-100, 100),
                oneSidedTest = FALSE, twoSidedTest = TRUE, inCore = TRUE,
-               verbose = getOption("verbose"), colsPerFile = 1000L)
+               verbose = getOption("verbose"), colsPerFile = 1000L,
+               isSlaveMode = FALSE)
 }
 %- maybe also 'usage' for other objects documented here.
 \arguments{
@@ -34,6 +37,10 @@ sensitivitySGD(z, s, d, y, beta0, beta1, phi, Pi, psi, tau,
     vector; the length of time from selection until event (\code{d}) or
     censoring.
     Can be \code{NA} for unselected records.
+  }
+  \item{v}{
+    numeric vector; the length of time from randomization until
+    selection or censoring.
   }
   \item{beta0}{
     vector; values of the sensitivity parameter linking outcome in group
@@ -70,6 +77,10 @@ sensitivitySGD(z, s, d, y, beta0, beta1, phi, Pi, psi, tau,
     value of \code{z} the delineates the first group, the last element
     \code{g1} being the value of \code{z} which delineates the second group.
   }
+  \item{followup.time}{
+    numeric value; cut-off point for \code{v} after which records are
+    lost to censoring.
+  }
   \item{ci}{
     numeric vector; confidence interval level, defaults to 0.95.
   }
@@ -90,6 +101,10 @@ sensitivitySGD(z, s, d, y, beta0, beta1, phi, Pi, psi, tau,
     integer; number of selection-events (S) for each bootstrap
     replication when doing selection-event based bootstrapping.
   }
+  \item{interval}{
+    numeric vector of length 2. Controls the range limits used to
+    by optimise to estimate alphahat.
+  }
   \item{oneSidedTest}{
     logical.  Return a one sided confidence interval for
     SCE(t). Defaults to \code{FALSE}.
@@ -109,6 +124,9 @@ sensitivitySGD(z, s, d, y, beta0, beta1, phi, Pi, psi, tau,
   \item{colsPerFile}{
     integer; number of columns of the scratch file to process in each
     pass (e.g., 100 columns).
+  }
+  \item{isSlaveMode}{
+    logical.  Internal Use only. Used in recursion.
   }
 }
 \details{
@@ -195,7 +213,7 @@ sens.analysis<-with(vaccine.trial,
                           time.points=c(2,3), selection="infected",
                           trigger="initiated ART",
                           groupings=c("placebo","vaccine"), ci=.95,
-                          ci.method="bootstrap", N.boot=500)
+                          ci.method="bootstrap", N.boot=100)
                )
 sens.analysis
 }

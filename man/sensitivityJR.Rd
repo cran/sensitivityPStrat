@@ -13,8 +13,9 @@
 sensitivityJR(z, s, y, beta0, beta1, phi, Pi, psi,
               selection, groupings,
               ci = 0.95, ci.method = c("analytic","bootstrap"),
-              na.rm = FALSE, N.boot = 100, oneSidedTest = FALSE,
-              twoSidedTest = TRUE, verbose=getOption("verbose"))
+              na.rm = FALSE, N.boot = 100, interval = c(-100, 100),
+              oneSidedTest = FALSE, twoSidedTest = TRUE,
+              verbose=getOption("verbose"), isSlaveMode = FALSE)
 }
 \arguments{
   \item{z}{
@@ -70,6 +71,10 @@ sensitivityJR(z, s, y, beta0, beta1, phi, Pi, psi,
     integer; number of bootstrap repetitions that will be run when
     \code{ci.method} includes \dQuote{bootstrap}.
   }
+  \item{interval}{
+    numeric vector of length 2. Controls the range limits used to
+    by optimise to estimate alphahat.
+  }
   \item{oneSidedTest}{
     logical.  Return a one sided confidence interval for ACE. Defaults
     to \code{FALSE}
@@ -80,6 +85,9 @@ sensitivityJR(z, s, y, beta0, beta1, phi, Pi, psi,
   }
   \item{verbose}{
     logical;  prints dots when bootstrapping to show that something is happening.
+  }
+  \item{isSlaveMode}{
+    logical.  Internal Use only. Used in recursion.
   }
 }
 \details{
@@ -163,14 +171,15 @@ sensitivityJR(z, s, y, beta0, beta1, phi, Pi, psi,
 
 
 data(vaccine.trial)
-ans<-with(vaccine.trial,
+ansJR<-with(vaccine.trial,
           sensitivityJR(z=treatment,s=hiv.outcome,y=logVL,
-                    beta0=c(0,.25,.5,.75,1), beta1=c(0,.25,.5,.75,1),
+                    beta0=c(-1,-.75,-.5,-.25,0,.25,.5,.75,1),
+                    beta1=c(-1,-.75,-.5,-.25,0,.25,.5,.75,1),
                     phi=c(0.95,0.90,0.80), selection="infected",
                     groupings=c("placebo","vaccine"),
-                    N.boot=1000)
+                    N.boot=100)
          )
-ans
+ansJR
 
 }
 % Add one or more standard keywords, see file 'KEYWORDS' in the

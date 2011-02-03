@@ -11,7 +11,8 @@
 sensitivityHHS(z, s, y, bound = c("upper", "lower"), selection,
                groupings, empty.principal.stratum, ci = 0.95,
                ci.method = c("bootstrap", "analytic"), na.rm = FALSE,
-               N.boot = 100, oneSidedTest = FALSE, twoSidedTest = TRUE)
+               N.boot = 100, oneSidedTest = FALSE, twoSidedTest = TRUE,
+               isSlaveMode=FALSE)
 }
 %- maybe also 'usage' for other objects documented here.
 \arguments{
@@ -71,6 +72,9 @@ sensitivityHHS(z, s, y, bound = c("upper", "lower"), selection,
   \item{twoSidedTest}{
     logical.  Return a two sided confidence interval for ACE. Defaults
     to \code{TRUE}
+  }
+  \item{isSlaveMode}{
+    logical.  Internal Use only. Used in recursion.
   }
 }
 \details{
@@ -144,7 +148,7 @@ est.bounds<-with(vaccine.trial,
                  sensitivityHHS(z=treatment, s=hiv.outcome, y=logVL,
                      selection="infected", groupings=c("placebo","vaccine"),
                      empty.principal.stratum=c("not infected","infected"),
-                     N.boot=1000)
+                     N.boot=100)
                 )
 est.bounds
 }

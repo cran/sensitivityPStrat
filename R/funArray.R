@@ -31,20 +31,52 @@ funVector <- function(length = 0) {
 }
 
 '[.funArray' <- function(x, ..., drop=TRUE) {
-  cl <- oldClass(x)
-  class(x) <- NULL
-  
-  x <- NextMethod(.Generic)
+  y <- NextMethod('[')
 
-  if(is.array(x))
-    class(x) <- cl
-  else if(length(x) == 1)
-    return(x[[1]])
-  else
-    class(x) <- ifelse(cl == 'funArray', 'funVector', cl)
+  cl <- oldClass(x)
   
-  x
+  if(is.array(y))
+    class(y) <- cl
+  else if(length(y) == 1)
+    return(y[[1]])
+  else
+    class(y) <- ifelse(cl == 'funArray', 'funVector', cl)
+  
+  y
 }
+
+## 'str.funVector' <- function(x, ...) {
+##   P0 <- function(...) paste(..., sep = "")                                                                            
+##   mod <- "function"
+
+##   if (is.array(object)) {
+##     rnk <- length(di. <- dim(object))
+##     di <- P0(ifelse(di. > 1, "1:", ""), di., ifelse(di. >
+##                                                     0, "", " "))
+##     pDi <- function(...) paste(c("[", ..., "]"),
+##                                collapse = "")
+##     le.str <- (if (rnk == 1)
+##                pDi(di[1L], "(1d)")
+##     else pDi(P0(di[-rnk], ", "), di[rnk]))
+##     std.attr <- "dim"
+##   }
+##   else if (!is.null(names(object))) {
+##     mod <- paste("Named", mod)
+##     std.attr <- std.attr[std.attr != "names"]
+##   }
+##   if (has.class && length(cl) == 1) {
+##     if (cl != mod && substr(cl, 1, nchar(mod)) !=
+##         mod)
+##       mod <- P0("'", cl, "' ", mod)
+##     std.attr <- c(std.attr, "class")
+##   }
+##   str1 <- if (le == 1 && !is.array(object))
+##     paste(NULL, mod)
+##   else P0(" ", mod, if (le > 0)
+##           " ", le.str)
+
+
+## }
 
 '[<-.funVector' <- function(x, ..., value) {
   if (!as.logical(length(value)))

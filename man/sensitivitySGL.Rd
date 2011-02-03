@@ -6,11 +6,12 @@
   using the method described by Shepherd, Gilbert, and Lumley (2007).
 }
 \usage{
-sensitivitySGL(z, s, d, y, beta, tau, time.points, selection, trigger,
-               groupings, empty.principal.stratum, ci=0.95,
-               ci.method = c("analytic", "bootstrap"), na.rm = FALSE,
-               N.boot = 100L, oneSidedTest = FALSE, twoSidedTest = TRUE,
-               verbose = getOption("verbose"))
+sensitivitySGL(z, s, d, y, v, beta, tau, time.points, selection, trigger,
+               groupings, empty.principal.stratum, followup.time,
+               ci=0.95, ci.method = c("analytic", "bootstrap"), na.rm = FALSE,
+               N.boot = 100L, interval = c(-100, 100),
+               oneSidedTest = FALSE, twoSidedTest = TRUE,
+               verbose = getOption("verbose"), isSlaveMode = FALSE)
 }
 \arguments{
   \item{z}{
@@ -28,6 +29,10 @@ sensitivitySGL(z, s, d, y, beta, tau, time.points, selection, trigger,
     vector; the length of time from selection until event (\code{d}) or
     censoring.
     Can be \code{NA} for unselected records.
+  }
+  \item{v}{
+    numeric vector; the length of time from randomization until
+    selection or censoring.
   }
   \item{beta}{
     vector; values of the sensitivity parameter.  \code{Inf} and
@@ -59,6 +64,10 @@ sensitivitySGL(z, s, d, y, beta, tau, time.points, selection, trigger,
     and s1 refer to the two possible values of s. (Note: method only
     works if s0 != s1).
   }
+  \item{followup.time}{
+    numeric value; cut-off point for \code{v} after which records are
+    lost to censoring.
+  }
   \item{ci}{
     numeric vector; confidence interval level, defaults to 0.95.
   }
@@ -75,6 +84,10 @@ sensitivitySGL(z, s, d, y, beta, tau, time.points, selection, trigger,
     integer; number of bootstrap repetitions that will be run when 
     \code{ci.method} includes \dQuote{bootstrap}.
   }
+  \item{interval}{
+    numeric vector of length 2. Controls the range limits used to
+    by optimise to estimate alphahat.
+  }
   \item{oneSidedTest}{
     logical.  Return a one sided confidence interval for
     SCE(t). Defaults to \code{FALSE}.
@@ -85,6 +98,9 @@ sensitivitySGL(z, s, d, y, beta, tau, time.points, selection, trigger,
   }
   \item{verbose}{
     logical;  prints dots when bootstrapping to show that something is happening.
+  }
+  \item{isSlaveMode}{
+    logical.  Internal Use only. Used in recursion.
   }
 }
 \details{
@@ -178,7 +194,7 @@ sens.time<-with(vaccine.trial,
                           time.points=c(2,3), selection="infected",
                           trigger="initiated ART", groupings=c("placebo","vaccine"),
                           empty.principal.stratum=c("not infected","infected"),
-                          N.boot=1000)
+                          N.boot=100, interval=c(-200,200))
                )
 sens.time
 }

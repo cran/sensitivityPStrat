@@ -1,3 +1,47 @@
+## Function to calculate w given by equation
+##
+##           1
+## ----------------------
+##   - beta y - alpha
+## %e                 + 1
+.calc.w <- function(alpha, beta.y)
+  1L/(1L + exp(-alpha - beta.y))
+
+## Need to solve equaition 1 for alpha
+##
+##  n
+## ====            dF
+## \                 i
+##  >    ----------------------- - C                                         (1)
+## /       - beta y  - alpha
+## ====            i
+## i = 1 %e                  + 1
+##
+## to do so find the minimum of the integral of the equation 1 shown in
+## equation 2
+##
+##  n
+## ====            beta y  + alpha
+## \                     i
+##  >    dF  log(%e                + 1) - alpha C                            (2)
+## /       i
+## ====
+## i = 1
+##
+.alpha.est <- function(alpha, beta.y, dF, C)
+  sum(log(1L + exp(alpha + beta.y)) * dF) - alpha*C
+
+.calc.alphahat <- function(beta.y, dF, C, interval) {
+  alphahat <- optimize(f=.alpha.est, interval=interval, beta.y=beta.y,
+                       dF=dF, C=C)$minimum
+  
+  if(alphahat > max(interval) - 10 || alphahat < min(interval) + 10) {
+    warning("optimize overflow alphahat value invalid, alphahat = ", alphahat)
+  }
+  
+  alphahat
+}
+
 .calc.ecdf <- function(x) {
   n <- length(x)
   
@@ -30,196 +74,60 @@
   x
 }
 
-print.sensitivity1d <- function(x, ...) {
-  labs <- attr(x, "parameters")
-  if(all(c('s0','s1') %in% names(labs))) {
-    cat("Empty Principle Stratum: ",
-        paste("S(", labs$z0, ") = ",labs$s0, ", S(", labs$z1, ") = ",
-              labs$s1, sep=''),
-        "\n")
-  }
+.makeBootstrapEvntIndx <- function(s, indx.seq, N) {
+  numEvents <- 0L
+  index <- integer(0L)
+  storage.mode(indx.seq) <- "integer"
+  storage.mode(N) <- "integer"
   
-  cat("ACE:\t", paste("E(Y(", labs$z1, ") - Y(", labs$z0,") | S(", labs$z0,
-                      ") = S(", labs$z1, ") = ",labs$selected,")", sep=''),
-      "\n")
+  repeat {
+    subIndx <- sample(indx.seq, 1000L, replace=TRUE)
+    numSubEvents <- sum(s[subIndx])
+    newNumEvents <- numEvents + numSubEvents
 
-  ACE <- x$ACE
-  print(ACE)
+    if(newNumEvents > N)
+      subIndx <- subIndx[cumsum(s[subIndx]) + numEvents <= N]
 
-  ci.method <- dimnames(x$ACE.ci)[['ci.method']]
-  
-  cat("\nACE confidence interval:\n")
-  if("analytic" %in% ci.method) {
-    cat("By analytic method\n")
-    print(x$ACE.ci[,"analytic",])
+    index <- c(index, subIndx)
+
+    if(newNumEvents >= N)
+      break
+
+    numEvents <- newNumEvents
   }
 
-  if(all(c("bootstrap", "analytic") %in% ci.method))
-     cat("\n")
-  
-  if("bootstrap" %in% ci.method) {
-    cat("By bootstrap method, N = ", attr(x, 'N.boot'), "\n",sep='')
-    print(x$ACE.ci[,"bootstrap",])
-  }
+  return(index)
 }
 
-print.sensitivity2d <- function(x, ...) {
-  labs <- attr(x, "parameters")
-  if(all(c('s0','s1') %in% names(labs))) {
-    cat("Empty Principle Stratum: ",
-        paste("S(", labs$z0, ") = ",labs$s0, ", S(", labs$z1, ") = ",
-              labs$s1, sep=''),
-        "\n")
-  }
-  
-  cat("ACE:\t", paste("E(Y(", labs$z1, ") - Y(", labs$z0,") | S(", labs$z0,
-                      ") = S(", labs$z1, ") = ",labs$selected,")", sep=''),
-      "\n")
+.makeBootstrapLenIndx <- function(s, indx.seq, N)
+  sample(indx.seq, N, replace=TRUE)
 
-  ACE <- x$ACE
-  print(ACE)
-
-  ci.method <- dimnames(x$ACE.ci)[['ci.method']]
-
-  cat("\nACE confidence interval:\n")
-  if("analytic" %in% ci.method) {
-    cat("By analytic method\n")
-    print(x$ACE.ci[,"analytic",])
-  }
-
-  if(all(c("bootstrap", "analytic") %in% ci.method))
-    cat("\n")
-  
-  if("bootstrap" %in% ci.method) {
-    cat("By bootstrap method, N = ", attr(x, 'N.boot'), "\n",sep='')
-    print(x$ACE.ci[,"bootstrap",])
-  }
-
-  invisible(NULL)
-}
-
-
-plot.sensitivity1d <- function(x, xlim, ylim, xlab=expression(beta), ylab='ACE',
-                               display = c("analytic", "bootstrap"),
-                               col='black', line.col=col, point.col=col,
-                               analytic.col="red",
-                               analytic.line.col=analytic.col,
-                               analytic.point.col=analytic.col,
-                               bootstrap.col="green",
-                               bootstrap.line.col=bootstrap.col,
-                               bootstrap.point.col=bootstrap.col,
-                               panel.last=NULL,
-                               type='l', ...) {
-  display <- match.arg(display, several.ok=TRUE)
-
-  sortIndx <- sort.list(x$beta)
-  beta <- x$beta[sortIndx]
-  ACE <- x$ACE[sortIndx]
-  ACE.ci <- x$ACE.ci[sortIndx,,, drop=FALSE]
-
-  finIndx <- is.finite(beta)
-  infIndx <- is.infinite(beta)
-  
-  beta.fin <- beta[finIndx]
-  ACE.fin <- ACE[finIndx]
-  ACE.ci.fin <- ACE.ci[finIndx,,, drop=FALSE]
-
-  beta.inf <- beta[infIndx]
-  ACE.inf <- ACE[infIndx]
-  ACE.ci.inf <- ACE.ci[infIndx,,, drop=FALSE]
-  
-  if(missing(ylim)) {
-    ylim <- range(c(ACE, ACE.ci))
-  }
-
-  if(missing(xlim)) {
-    xlim <- range(beta, finite=TRUE)
-  }
-  
-  indx <- match(beta.inf, c(-Inf, Inf))
-
-  plot.default(x=beta.fin, y=ACE.fin, xlim=xlim, ylim=ylim, type=type,
-               ...)
-  inf.x <- par('usr')[indx] + strwidth("m")/c(2,-2)[indx]
-  points(x=inf.x, y=ACE.inf, pch=1, col=point.col)
-
-  ##  doBootstrap
-  if('analytic' %in% display && 'analytic' %in% colnames(x$ACE.var)) {
-    for(i in seq_len(dim(ACE.ci.fin)[[2]])) {
-      lines(x=beta.fin, y=ACE.ci.fin[,i,'analytic'], lty=2,
-            col=analytic.line.col)
-    }
-    points(x=rep.int(inf.x, times=dim(ACE.ci.fin)[[2]]),
-           y=ACE.ci.inf[,indx, "analytic"], pch=3, col=analytic.point.col)
-  }
-
-  if('bootstrap' %in% colnames(x$ACE.var) && 'bootstrap' %in% display) {
-    for(i in seq_len(dim(ACE.ci.fin)[[2]])) {
-      lines(x=beta.fin, y=ACE.ci.fin[,i,"bootstrap"], lty=2,
-            col=bootstrap.line.col)
-    }
-    points(x=rep(inf.x, times=dim(ACE.ci.fin)[[2]]),
-           y=ACE.ci.inf[,indx,"bootstrap"], pch=3, col=bootstrap.point.col)
-  }
-}
-
-plot.sensitivity2d <- function(x, xlim, ylim, xlab=expression(beta),
-                                 t.point,
-                                 ylab='SCE',
-                                 display = c("analytic", "bootstrap"),
-                                 col='black', line.col=col, point.col=col,
-                                 analytic.col="red",
-                                 analytic.line.col=analytic.col,
-                                 analytic.point.col=analytic.col,
-                                 bootstrap.col="green",
-                                 bootstrap.line.col=bootstrap.col,
-                                 bootstrap.point.col=bootstrap.col,
-                                 panel.last=NULL,
-                                 type='l', ...) {
-  
-  display <- match.arg(display, several.ok=TRUE)
-
-  sortIndx <- sort.list(x$beta)
-  beta <- x$beta[sortIndx]
-  SCE <- x$SCE[sortIndx]
-  SCE.ci <- x$SCE.ci[t.point, sortIndx,,, drop=FALSE]
-
-  finIndx <- is.finite(beta)
-  infIndx <- is.infinite(beta)
-  
-  beta.fin <- beta[finIndx]
-  SCE.fin <- SCE[finIndx]
-  SCE.ci.fin <- SCE.ci[t.point, finIndx,,, drop=FALSE]
-
-  beta.inf <- beta[infIndx]
-  SCE.inf <- SCE[infIndx]
-  SCE.ci.inf <- SCE.ci[t.point, infIndx,,, drop=FALSE]
-  
-  if(missing(ylim)) {
-    ylim <- range(c(SCE, SCE.ci))
-  }
-
-  if(missing(xlim)) {
-    xlim <- range(beta, finite=TRUE)
-  }
-  
-  indx <- match(beta.inf, c(-Inf, Inf))
-
-  plot.default(x=beta.fin, y=SCE.fin, xlim=xlim, ylim=ylim, type=type,
-               ...)
-  inf.x <- par('usr')[indx] + strwidth("m")/c(2,-2)[indx]
-  points(x=inf.x, y=SCE.inf, pch=1, col=point.col)
-
-  ##  doBootstrap
-  if('analytic' %in% display && 'analytic' %in% colnames(x$SCE.var)) {
-    lines(x=beta.fin, y=SCE.ci.fin[t.point,,1,'analytic'], lty=2, col=analytic.line.col)
-    lines(x=beta.fin, y=SCE.ci.fin[t.point,,2,'analytic'], lty=2, col=analytic.line.col)
-    points(x=rep.int(inf.x, times=2), y=SCE.ci.inf[t.point,indx,, "analytic"], pch=3, col=analytic.point.col)
-  }
-
-  if('bootstrap' %in% colnames(x$SCE.var) && 'bootstrap' %in% display) {
-    lines(x=beta.fin, y=SCE.ci.fin[t.point,,1,"bootstrap"], lty=2, col=bootstrap.line.col)
-    lines(x=beta.fin, y=SCE.ci.fin[t.point,,2,"bootstrap"], lty=2, col=bootstrap.line.col)
-    points(x=rep(inf.x, times=2), y=SCE.ci.inf[t.point,indx,,"bootstrap"], pch=3, col=bootstrap.point.col)
+.calcPiPhiPsi <- function(Pi=Pi, phi=phi, psi=psi, p0=p0, p1=p1) {
+  if(!missing(psi) && !is.null(psi)) {
+    return(list(sens.var = "psi",
+                Pi = Pi <- ifelse(psi == Inf, p1, 
+                  ifelse(abs(psi) < sqrt(.Machine$double.eps), p0*p1,
+                         -(sqrt((p1^2-2*p0*p1+p0^2)*exp(2*psi)+p1^2
+                                +exp(psi)
+                                *(-2*p1^2+2*p1-2*p0^2+2*p0)
+                                +(2*p0-2)*p1+p0^2-2*p0+1)
+                           +p1+exp(psi)*(-p1-p0)+p0-1)
+                         /(2*exp(psi)-2))),
+                psi=psi,
+                phi = ifelse(psi == Inf, 1, Pi/p1)))
+  } else if(!missing(phi) && !is.null(phi)) {
+    new.phi <- ifelse(phi == 1, NA, phi)
+    return(list(sens.var="phi",
+                Pi = p1*phi,
+                psi = ifelse(phi == 1,
+                  Inf,
+                  log((p1 * new.phi^2 + (1 - p0 - p1)*new.phi)/
+                      (p1 * new.phi^2 - (p1 + p0)* new.phi + p0))),
+                phi=phi))
+  } else {
+    return(list(sens.var = "Pi",
+                Pi=Pi,
+                psi = log(Pi * (1 - p1 - p0 + Pi)/(p1 - Pi)/(p0 - Pi)),
+                phi = Pi/p1))
   }
 }

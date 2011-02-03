@@ -11,7 +11,9 @@
 sensitivityGBH(z, s, y, beta, selection, groupings,
                empty.principal.stratum, ci = 0.95,
                ci.method = c("analytic", "bootstrap"), na.rm = FALSE,
-               N.boot = 100, oneSidedTest = FALSE, twoSidedTest = TRUE)
+               N.boot = 100, interval = c(-100, 100),
+               oneSidedTest = FALSE, twoSidedTest = TRUE,
+               isSlaveMode=FALSE)
 }
 %- maybe also 'usage' for other objects documented here.
 \arguments{
@@ -63,6 +65,10 @@ sensitivityGBH(z, s, y, beta, selection, groupings,
     integer; number of bootstrap repetitions that will be run when
     \code{ci.method} includes \dQuote{bootstrap}.
   }
+  \item{interval}{
+    numeric vector of length 2. Controls the range limits used to
+    by optimise to estimate alphahat.
+  }
   \item{oneSidedTest}{
     logical.  Return a one sided confidence interval for ACE. Defaults
     to \code{FALSE}
@@ -70,6 +76,9 @@ sensitivityGBH(z, s, y, beta, selection, groupings,
   \item{twoSidedTest}{
     logical.  Return a two sided confidence interval for ACE. Defaults
     to \code{TRUE}
+  }
+  \item{isSlaveMode}{
+    logical.  Internal Use only. Used in recursion.
   }
 }
 \details{
@@ -159,42 +168,20 @@ ans<-with(vaccine.trial,
                     selection="infected",
                     groupings=c("placebo","vaccine"),
                     empty.principal.stratum=c("not infected","infected"),
-                    N.boot=1000)
+                    N.boot=100)
          )
 ans
-\dontshow{
-stopifnot(is.list(ans))
-stopifnot(inherits(ans,"sensitivity2d"))
-}
 
 ans<-with(vaccine.trial,
           sensitivityGBH(z=treatment,s=hiv.outcome,y=logVL,
-                    beta=c(-Inf, 0,.25,.5,.75,1,Inf),                      
+                    beta=c(-Inf,-1,-0.75,-0.5,-0.25,0,.25,.5,.75,1,Inf),
                     selection="infected",
                     groupings=c("placebo","vaccine"),
                     empty.principal.stratum=c("not infected","infected"),
                     ci.method="bootstrap",
-                    N.boot=1000)
+                    N.boot=100)
          )
 ans
-\dontshow{
-stopifnot(is.list(ans))
-stopifnot(inherits(ans,"sensitivity2d"))
-}
-ans<-with(vaccine.trial,
-          sensitivityGBH(z=treatment,s=hiv.outcome,y=logVL,
-                    beta=-Inf,                      
-                    selection="infected",
-                    groupings=c("placebo","vaccine"),
-                    empty.principal.stratum=c("not infected","infected"),
-                    ci.method="bootstrap",
-                    N.boot=1000)
-         )
-ans
-\dontshow{
-stopifnot(is.list(ans))
-stopifnot(inherits(ans,"sensitivity2d"))
-}
 }
 \keyword{design}
 % Add one or more standard keywords, see file 'KEYWORDS' in the

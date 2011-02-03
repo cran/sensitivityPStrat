@@ -30,42 +30,46 @@
 
   calc.beta.tplus <- function(beta,time)
     if(is.finite(beta)) return(beta*time) else return(beta)
-  return(lapply(beta, time=tplus0, FUN=calc.beta.tplus))
+  return(list(beta.tplus=lapply(beta, time=tplus0, FUN=calc.beta.tplus),
+              tplus=tplus0))
 }
 
 .calcSGLCoeffCommon <- function(beta, KM0, tau, time.points) {
   q.list <- .calc.time.seq.list(time.points, KM0$t)
   q.index <- unlist(lapply(q.list, FUN=sum))
 
-  beta.tplus <- .calc.beta.tplus.list(beta, KM0$t, tau)
+  tvals <- .calc.beta.tplus.list(beta, KM0$t, tau)
 
   KMAns <- KM0[ifelse(q.index == 0L, NA, q.index),]
   KMAns[q.index == 0L,] <- 0
 
-  return(list(q.list=q.list, q.index=q.index, beta.tplus=beta.tplus,
-              KMAns=KMAns, i=seq_along(beta.tplus)))
+  return(list(q.list=q.list, q.index=q.index, beta.tplus=tvals$beta.tplus,
+              tplus=tvals$tplus,
+              KMAns=KMAns, i=seq_along(beta)))
 }
 
-.calcSGL.coeff.smp <- function(beta, KM0, dF0, tau, time.points, RR) {
+## .calcSGL.coeff.smp <- function(beta, KM0, dF0, tau, time.points, RR, interval) {
+##   com <- .calcSGLCoeffCommon(beta, KM0, tau, time.points)
+
+##   return(mapply(FUN=.calcSGLBetaCoeffBasic,
+##                 i=com$i, beta=beta, beta.tplus=com$beta.tplus,
+##                 MoreArgs=list(q.index=com$q.index, KMAns=com$KMAns, dF0=dF0,
+##                   RR=RR, interval=interval),
+##                 SIMPLIFY=FALSE, USE.NAMES=FALSE))
+## }
+
+.calcSGL.coeff <- function(beta, KMFn0, KM0, dF0, p0, t0, n0, N0, n1, N1, tau,
+                           time.points, RR, interval, doAnalytic) {
+
   com <- .calcSGLCoeffCommon(beta, KM0, tau, time.points)
-  
-  return(mapply(FUN=.calcSGLBetaCoeffBasic,
-                i=com$i, beta=beta, beta.tplus=com$beta.tplus,
-                MoreArgs=list(q.index=com$q.index, KMAns=com$KMAns, dF0=dF0,
-                  RR=RR),
-                SIMPLIFY=FALSE, USE.NAMES=FALSE))
-}
 
-.calcSGL.coeff.adv <- function(beta, KM0, dF0, p0, t0, n0, N0, n1, N1, tau,
-                           time.points, RR) {
 
-  com <- .calcSGLCoeffCommon(beta, KM0, tau, time.points)
-
-  coeffs <- mapply(FUN=.calcSGLBetaCoeffAdv,
+  coeffs <- mapply(FUN=.calcSGLBetaCoeff,
                    i=com$i, beta=beta, beta.tplus=com$beta.tplus,
                    MoreArgs=list(q.list=com$q.list, q.index=com$q.index,
-                     KMAns=com$KMAns, dF0=dF0, p0=p0, n0=n0, N0=N0,
-                     n1=n1, N1=N1, RR=RR, len.F=length(KM0$t)),
+                     KMFn0=KMFn0, KMAns=com$KMAns, dF0=dF0, p0=p0, n0=n0, N0=N0,
+                     n1=n1, N1=N1, RR=RR, len.F=length(KM0$t), tplus=com$tplus,
+                     interval=interval, doAnalytic=doAnalytic),
                    USE.NAMES=FALSE, SIMPLIFY=FALSE)
 
   return(coeffs)
@@ -102,82 +106,77 @@
 .calcSGLNegInfFasVar <- function(KMAns, RR, n0, N0, n1, N1)
   (KMAns$Fas.var/RR)^2 + ((1 - KMAns$Fas)/RR)^2*(1/n0 - 1/N0 + 1/n1 - 1/N1)
 
-.calcSGLInfCoeffAdv <- function(beta, KMAns, RR, n0, N0, n1, N1) {
+.calcSGLInfCoeff <- function(beta, KMAns, RR, n0, N0, n1, N1, doAnalytic) {
 
-  if(beta < 0L) {
-    Fas <- .calcSGLNegInfFas(KMAns, RR)
-    Fas.var <- .calcSGLNegInfFasVar(KMAns, RR, n0, N0, n1, N1)
+  ans <- list()
+  if(all.equal(beta, 0) == TRUE) {
+    ans$Fas <- .calcSGLNegInfFas(KMAns, RR)
+    if(doAnalytic)
+      ans$Fas.var <- .calcSGLNegInfFasVar(KMAns, RR, n0, N0, n1, N1)
   } else {
-    Fas <- .calcSGLPosInfFas(KMAns, RR)
-    Fas.var <- .calcSGLPosInfFasVar(KMAns, RR, n0, N0, n1, N1)
+    ans$Fas <- .calcSGLPosInfFas(KMAns, RR)
+    if(doAnalytic)
+      ans$Fas.var <- .calcSGLPosInfFasVar(KMAns, RR, n0, N0, n1, N1)
   }
 
-  return(list(Fas=Fas, Fas.var=Fas.var))
+  return(ans)
 }
 
-.calcSGLInfCoeffBasic <- function(beta, KMAns, RR) {
-  if(beta < 0L) {
-    Fas <- .calcSGLNegInfFas(KMAns, RR)
-  } else {
-    Fas <- .calcSGLPosInfFas(KMAns, RR)
-  }
+## .calcSGLInfCoeffBasic <- function(beta, KMAns, RR) {
+##   if(beta < 0L) {
+##     Fas <- .calcSGLNegInfFas(KMAns, RR)
+##   } else {
+##     Fas <- .calcSGLPosInfFas(KMAns, RR)
+##   }
 
-  return(list(Fas=Fas))
-}
+##   return(list(Fas=Fas))
+## }
 
-.calc.w <- function(alpha, beta.tplus) 
-  1/(1L+exp(-alpha - beta.tplus))
+## .calcSGLBetaCoeffBasic <- function(i, beta, beta.tplus, q.index, KMAns, dF0,
+##                                   RR, interval) {
+##   if(is.infinite(beta)) {
+##     return(c(list(i=i, alphahat=NA),
+##              .calcSGLInfCoeffBasic(beta, KMAns, RR)))
+##   }
 
-.calc.alphahat <- function(beta.tplus, dF, B) {
-  ee <- function(a, beta.tplus, dF, B) {
-    (sum(.calc.w(alpha=a, beta.tplus=beta.tplus)*dF) - B)^2
-  }
+##   alphahat <- .calc.alphahat(beta.y=beta.tplus, dF=dF0, C=RR, interval=interval)
 
-  alphahat <- optimize(ee, c(-100,100), beta.tplus=beta.tplus, dF=dF,
-                       B=B)$minimum
+##   if(all.equal(beta, 0) == TRUE)
+##     return(list(i=i, alphahat=alphahat, Fas=KMAns$Fas))
 
-  if(alphahat > 90 || alphahat < -90) {
-    warning("optimize overflow alphahat value invalid")
-  }
+##   w <- .calc.w(alpha=alphahat, beta.y=beta.tplus)
 
-  alphahat
-}
+##   w.dF0 <- w*dF0
+##   F0ai <- cumsum(w.dF0)/RR
 
-.calcSGLBetaCoeffBasic <- function(i, beta, beta.tplus, q.index, KMAns, dF0,
-                                  RR) {
+##   Fas <- ifelse(q.index == 0L, 0L, F0ai[q.index])
+
+##   return(list(i=i, alphahat=alphahat, Fas=Fas))
+## }
+
+.calcSGLBetaCoeff <- function(i, beta, beta.tplus, q.list, q.index,
+                                 KMFn0, KMAns, dF0, p0, n0, N0, n1, N1, RR,
+                                 tplus, len.F, interval, doAnalytic) {
   if(is.infinite(beta)) {
     return(c(list(i=i, alphahat=NA),
-             .calcSGLInfCoeffBasic(beta, KMAns, RR)))
+             .calcSGLInfCoeff(beta, KMAns, RR, n0, N0, n1, N1, doAnalytic)))
   }
 
-  alphahat <- .calc.alphahat(beta.tplus, dF0, RR)
-
-  if(all.equal(beta, 0) == TRUE)
-    return(list(i=i, alphahat=alphahat, Fas=KMAns$Fas))
-
-  w <- .calc.w(alpha=alphahat, beta.tplus=beta.tplus)
-
-  w.dF0 <- w*dF0
-  F0ai <- cumsum(w.dF0)/RR
-
-  Fas <- ifelse(q.index == 0L, 0L, F0ai[q.index])
-
-  return(list(i=i, alphahat=alphahat, Fas=Fas))
-}
-
-.calcSGLBetaCoeffAdv <- function(i, beta, beta.tplus, q.list, q.index, KMAns, dF0,
-                             p0, n0, N0, n1, N1, RR, len.F) {
-  if(is.infinite(beta)) {
-    return(c(list(i=i, alphahat=NA),
-             .calcSGLInfCoeffAdv(beta, KMAns, RR, n0, N0, n1, N1)))
-  }
-  
-  alphahat <- .calc.alphahat(beta.tplus, dF0, RR)
+  if(RR > 1L) {
+    alphahat <- Inf
+  } else {
+    alphahat <- .calc.alphahat(beta.y=beta.tplus, dF=dF0, C=RR, interval=interval)}
 
   if(all.equal(beta, 0) == TRUE) {
-    Fas <- KMAns$Fas
-
-    w <- .calc.w(alpha=alphahat, beta.tplus=0)
+    if(!doAnalytic)
+      return(list(i=i, alphahat=alphahat, Fas=KMAns$Fas, FnAs=KMFn0))
+    
+    Fas0 <- KMAns$Fas
+    FnAs <- KMFn0
+    if(RR > 1L)
+      w <- rep.int(1L, times=length(tplus))
+    else
+      w <- .calc.w(alpha=alphahat, beta.y=0)
 
     A1 <- -N1*p0*w*(1-w)
     B1 <- 0
@@ -188,56 +187,58 @@
     
     dg[seq.int(from=0L, along=q.index)*dg.nrow + q.index + 2] <- 1
     dg <- as.data.frame(dg)
+  } else {
+    if(RR > 1L)
+      w <- 1
+    else
+      w <- .calc.w(alpha=alphahat, beta.y=beta.tplus)
+
+    w.dF0 <- w*dF0
+
+    Fas <- cumsum(w.dF0)/RR
+    FnAs <- stepfun(x=tplus, y=c(0, Fas), right=TRUE)
     
-    return(list(i=i, alphahat=alphahat, A1=A1, B1=B1, Fas=Fas, Fas.var=NULL,
-                dg=dg))
+    Fas0 <- ifelse(q.index == 0, 0, Fas[q.index])
+
+    if(!doAnalytic)
+      return(list(i=i, alphahat=alphahat, Fas=Fas0, FnAs=FnAs))
+    
+    w.1mw.dF0 <- w.dF0*(1-w)
+    sum.w.dF0 <- sum(w.dF0)
+    sum.w.1mw.dF0 <- sum(w.1mw.dF0)
+    diff.w <- diff(w)
+  
+    A1 <- sum(-N1 * w.1mw.dF0 * p0)
+    B1 <- -N1*p0*-diff.w
+
+    dg <- mapply(FUN=.calcSGL.g, q.index=q.index, q.seq=q.list,
+                 MoreArgs=list(w, w.dF0, w.1mw.dF0,
+                   sum.w.dF0, sum.w.1mw.dF0, diff.w, Fas),
+                 SIMPLIFY=FALSE)
   }
   
-    
-  w <- .calc.w(alpha=alphahat, beta.tplus=beta.tplus)
-
-  w.dF0 <- w*dF0
-  F0ai <- cumsum(w.dF0)/RR
-  Fas <- ifelse(q.index == 0, 0, F0ai[q.index])
-  
-  w.1mw.dF0 <- w.dF0*(1-w)
-  sum.w.dF0 <- sum(w.dF0)
-  sum.w.1mw.dF0 <- sum(w.1mw.dF0)
-  diff.w <- diff(w)
-  
-  A1 <- sum(-N1 * w.1mw.dF0 * p0)
-  B1 <- -N1*p0*-diff.w
-
-  dg <- mapply(FUN=.calcSGL.g, q.index=q.index, q.seq=q.list,
-                 MoreArgs=list(w, w.dF0, w.1mw.dF0,
-                 sum.w.dF0, sum.w.1mw.dF0, diff.w, F0ai),
-                 SIMPLIFY=FALSE)
-
-  return(list(i=i, A1=A1, B1=B1, alphahat=alphahat, Fas=Fas, Fas.var=NULL,
-              dg=dg))
+  return(list(i=i, A1=A1, B1=B1, alphahat=alphahat, Fas=Fas0, FnAs=FnAs,
+              Fas.var=NULL, dg=dg))
 }
 
-.makeBootstrapLenIndx <- function(s, indx.seq, N)
-  sample(indx.seq, N, replace=TRUE)
-
-sensitivitySGL <- function(z, s, d, y, beta, tau, time.points,
+sensitivitySGL <- function(z, s, d, y, v, beta, tau, time.points,
                            selection, trigger, groupings,
-                           empty.principal.stratum,
+                           empty.principal.stratum, followup.time,
                            ci=0.95, ci.method=c("analytic", "bootstrap"),
-                           na.rm=FALSE, N.boot=100L, oneSidedTest=FALSE,
-                           twoSidedTest=TRUE, verbose=getOption("verbose")) {
-  if(!require(survival))
-    stop("require's the survival package to function")
+                           na.rm=FALSE, N.boot=100L, interval=c(-100,100),
+                           oneSidedTest=FALSE, twoSidedTest=TRUE,
+                           verbose=getOption("verbose"), isSlaveMode=FALSE) {
 
   ## z - group that subject belongs to
   ## s - subject met selection cirteria
   ## d - subject had event
   ## y - time until event ocurred
+  withoutCdfs <- isSlaveMode && !missing(ci.method) && is.null(ci.method)
+  withoutCi <- ((!isSlaveMode && !missing(ci.method) && ci.method == "") ||
+                (isSlaveMode && !(!missing(ci.method) && !is.null(ci.method) &&
+                                 'analytic' %in% ci.method)))
 
-  if(!missing(ci.method) && is.null(ci.method))
-    isSlaveMode <- TRUE
-  else
-    isSlaveMode <- FALSE
+  doFollowupMethod <- !missing(followup.time) && !is.null(followup.time)
 
   if(!isSlaveMode) {
     ## Not running a boot strap mode
@@ -246,23 +247,35 @@ sensitivitySGL <- function(z, s, d, y, beta, tau, time.points,
                 .CheckSelection(selection, s, empty.principal.stratum),
                 .CheckGroupings(groupings),
                 .CheckTrigger(trigger, d),
-                .CheckLength(z=z, s=s, y=y),
-                .CheckZ(z, groupings, na.rm),
-                .CheckS(s, empty.principal.stratum, na.rm),
-                .CheckY(y, s, selection),
-                .CheckD(d=d, s=s, selection=selection))
+                .CheckTau(tau),
+                .CheckLength(z=z, s=s, y=y, v=v),
+                .CheckZ(z, groupings, na.rm=na.rm),
+                .CheckS(s, empty.principal.stratum, na.rm=na.rm),
+                .CheckY(y, s, selection, na.rm=na.rm),
+                .CheckD(d=d, s=s, selection=selection, na.rm=na.rm),
+                .CheckV(v=v, followup.time=followup.time, na.rm=na.rm))
 
     if(length(ErrMsg) > 0L)
       stop(paste(ErrMsg, collapse="\n  "))
 
+    s <- s == selection
 
     if(na.rm == TRUE) {
-      naIndex <- !(is.na(s) | is.na(z) | (s & (is.na(d) | is.na(y))))
+      if(doFollowupMethod)
+        naIndex <- (is.na(s) | is.na(v) | is.na(z) |
+                    (s & (is.na(d) | is.na(y))))
+      else
+        naIndex <- (is.na(s) | is.na(z) | (s & (is.na(d) | is.na(y))))
 
-      z <- z[naIndex]
-      s <- s[naIndex]
-      d <- d[naIndex]
-      y <- y[naIndex]
+      if(any(naIndex)) {
+        z <- z[!naIndex]
+        s <- s[!naIndex]
+        d <- d[!naIndex]
+        y <- y[!naIndex]
+
+        if(doFollowupMethod)
+          v <- v[!naIndex]
+      }
     }
 
     GroupReverse <- FALSE
@@ -271,13 +284,17 @@ sensitivitySGL <- function(z, s, d, y, beta, tau, time.points,
       GroupReverse <- TRUE
     } else if(empty.principal.stratum[2L] == selection)
       z <- ifelse(z == groupings[2L], TRUE, ifelse(z == groupings[1L], FALSE, NA))
-    s <- s == selection
     d <- d == trigger
   } else {
-    GroupReverse <- ci
+    GroupReverse <- groupings
   }
-  
-  ci.method <- sort(unique(match.arg(ci.method, several.ok=TRUE)))
+
+  if(withoutCi) 
+    ci.method <- NULL
+  else if(isSlaveMode)
+    ci.method <- "analytic"
+  else
+    ci.method <- sort(unique(match.arg(ci.method, several.ok=TRUE)))
   
   ## N  - number subjects
   ## N0 - number of subjects in group 0
@@ -286,18 +303,47 @@ sensitivitySGL <- function(z, s, d, y, beta, tau, time.points,
   N1 <- sum(z)
   N0 <- N-N1
 
-  z0.s1 <- !z & s
-  z1.s1 <- z & s
-  
-  ## n0 - number of subjects in group 0 that were selected 
-  ## n1 - number of subjects in group 1 that were selected
-  n0 <- sum(z0.s1)
-  n1 <- sum(z1.s1)
+  if(doFollowupMethod) {
+    s <- s & v < followup.time
 
-  ## p0 - probiblity that subject in group 0 was selected
-  ## p1 - probablity that subject in group 1 was selected
-  p0 <- n0/N0
-  p1 <- n1/N1
+    z0.s1 <- !z & s
+    z1.s1 <- z & s
+
+    temp <- with(survfit(Surv(v, s) ~ z, se.fit=FALSE),{
+      who <- n.event > 0L
+      data.frame(strata=rep.int(seq_along(strata), times=strata)[who],
+                 surv=surv[who])
+    })
+
+    
+    p0 <- 1L - tail(x=temp$surv[temp$strata == 1L], n=1L)
+    p1 <- 1L - tail(x=temp$surv[temp$strata == 2L], n=1L)
+
+    n0 <- p0*N0
+    n1 <- p1*N1
+  } else {    
+    z0.s1 <- !z & s
+    z1.s1 <- z & s
+    
+    ## n0 - number of subjects in group 0 that were selected 
+    ## n1 - number of subjects in group 1 that were selected
+    n0 <- sum(z0.s1)
+    n1 <- sum(z1.s1)
+
+    ## p0 - probiblity that subject in group 0 was selected
+    ## p1 - probablity that subject in group 1 was selected
+    p0 <- n0/N0
+    p1 <- n1/N1
+  }
+
+  if(all(z0.s1 == FALSE) || all(z1.s1 == FALSE) ||
+     all(d[z0.s1] == FALSE) || all(d[z1.s1] == FALSE)) {
+    if(isSlaveMode) {
+      return(list(SCE = logical(0)))
+    } else {
+      stop("No times occured in one or more of the treatment arms")
+    }
+  }
 
   RR <- p1/p0
   VE <- 1L - RR
@@ -305,9 +351,13 @@ sensitivitySGL <- function(z, s, d, y, beta, tau, time.points,
   ## summary survfit of length of time til event for group 0 and group 1.
   KM0 <- with(summary(survfit(Surv(y[z0.s1],d[z0.s1])~1L)),
               data.frame(t=time, Fas=1L - surv, Fas.var=std.err*std.err))
+  KMFn0 <- stepfun(x=KM0$t, y=c(0, KM0$Fas), right=TRUE)
+
 
   KM1 <- with(summary(survfit(Surv(y[z1.s1],d[z1.s1])~1L)), 
               data.frame(t=time, Fas=1L - surv, Fas.var=std.err*std.err))
+
+  FnAs1 <- stepfun(x=KM1$t, y=c(0, KM1$Fas), right=TRUE)
 
   len.t0 <- length(KM0$t)
   
@@ -316,8 +366,8 @@ sensitivitySGL <- function(z, s, d, y, beta, tau, time.points,
   
   dF0 <- diff(c(0L,KM0$Fas,1L))
 
-  doAnalyticCi <- ('analytic' %in% ci.method && !is.null(ci))
-  doBootStrapCi <- ('bootstrap' %in% ci.method && !is.null(ci))
+  doAnalyticCi <- ('analytic' %in% ci.method && !is.null(ci) && !withoutCi)
+  doBootStrapCi <- ('bootstrap' %in% ci.method && !is.null(ci) && !withoutCi)
 
   betaOrig <- beta
   beta <- unique(sort(beta))
@@ -325,35 +375,89 @@ sensitivitySGL <- function(z, s, d, y, beta, tau, time.points,
   timePointsOrig <- time.points
   time.points <- unique(sort(time.points))
 
-  if(doAnalyticCi) {
-    coeffs0 <- .calcSGL.coeff.adv(beta=beta, KM0=KM0, dF0=dF0, p0=p0,
-                              n0=n0, N0=N0, n1=n1, N1=N1, tau=tau,
-                                 time.points=time.points, RR=RR)
-  } else {
-    coeffs0 <- .calcSGL.coeff.smp(beta=beta, KM0=KM0, dF0=dF0, tau=tau,
-                                   time.points=time.points, RR=RR)
-  }
+  tpIndex <- match(time.points, timePointsOrig)
+  betaIndex <- match(beta, betaOrig)
+
+  coeffs0 <- .calcSGL.coeff(beta=beta, KMFn0=KMFn0, KM0=KM0, dF0=dF0,
+                            p0=p0, n0=n0, N0=N0, n1=n1, N1=N1, tau=tau[1],
+                            time.points=time.points, RR=RR,
+                            interval=interval, doAnalytic=doAnalyticCi)
 
   coeff1 <- .calcSGLF1(time.points=time.points, KM1)
   
-  SCE.dim <- c(length(time.points), length(beta))
+  SCE.dim <- c(length(beta), length(time.points))
   SCE.length <- prod(SCE.dim)
-  SCE.dimnames <- list(time.points=as.character(time.points),
-                       beta=as.character(beta))
+  SCE.dimnames <- list(beta=as.character(beta),
+                       time.points=as.character(time.points))
   SCE <- array(numeric(SCE.length), dim=SCE.dim, dimnames=SCE.dimnames)
   
-  for(coeff0 in coeffs0) {
-    SCE[,coeff0$i] <- coeff0$Fas - coeff1$Fas
+  if(!withoutCdfs) {
+    FnAs0.length <- length(beta)
+
+    alphahat <- numeric(FnAs0.length)
+    names(alphahat) <- as.character(beta)
+
+    FnAs0 <- funVector(FnAs0.length)
+    names(FnAs0) <- as.character(beta)
   }
   
-  if(isSlaveMode) return(list(SCE=SCE))
+  for(coeff0 in coeffs0) {
+    SCE[coeff0$i,] <- coeff0$Fas - coeff1$Fas
+    if(!withoutCdfs) {
+      FnAs0[coeff0$i] <- coeff0$FnAs
+      alphahat[coeff0$i] <- coeff0$alphahat
+    }
+  }
+
+  if(withoutCdfs) return(list(SCE=SCE))
+
+  if(GroupReverse && !isSlaveMode) {
+    FnAs1 <- FnAs0
+    FnAs0 <- FnAs1
+  }
   
-  SCE.var.dim <- c(SCE.dim, length(ci.method))
-  SCE.var.dimnames <- c(SCE.dimnames, list(ci.method=ci.method))
+  cdfs <- list()
+  
+  if(withoutCi) {
+    if(isSlaveMode)
+      return(list(SCE=SCE, alphahat=alphahat, Fas0=FnAs0, Fas1=FnAs1))
+
+      return(structure(list(SCE=SCE[betaIndex,tpIndex,drop=FALSE],
+                            beta=betaOrig, alphahat=alphahat[betaIndex],
+                            Fas0=FnAs0[betaIndex], Fas1=FnAs1),
+                       class=c("sensitivity.1d", "sensitivity"),
+                       parameters=list(z0=groupings[1], z1=groupings[2],
+                         selected=selection, trigger=trigger)))
+  }
+  
+  if(twoSidedTest) {
+    ci.probs <- c(ifelse(ci < 0.5, ci, 0), ifelse(ci < 0.5, 1, ci)) +
+      rep(ifelse(ci < 0.5, -ci/2, (1-ci)/2), times=length(ci))
+  } else {
+    ci.probs <- NULL
+  }
+
+  if(oneSidedTest) {
+    ci.probs <- c(ci.probs, ci)
+  }
+
+  ci.probs <- unique(ci.probs)
+  ci.probsLen <- length(ci.probs)
+
+  SCE.ci.dim <- c(SCE.dim, ci.probsLen, length(ci.method))
+  SCE.ci.dimnames <- c(SCE.dimnames, list(ci.probs=as.character(ci.probs),
+                                         ci.method=ci.method))
+  
+  SCE.var.dim <- SCE.ci.dim[names(SCE.ci.dimnames) != "ci.probs"]
+  SCE.var.dimnames <- SCE.ci.dimnames[names(SCE.ci.dimnames) != "ci.probs"]
   
   SCE.var <- array(numeric(0),
-                    dim=SCE.var.dim,
-                    dimnames=SCE.var.dimnames)
+                   dim=SCE.var.dim,
+                   dimnames=SCE.var.dimnames)  
+
+  SCE.ci <- array(numeric(0),
+                  dim=SCE.ci.dim,
+                  dimnames=SCE.ci.dimnames)
 
   if(doAnalyticCi) {
     Gamma <- Omega <- matrix(0, ncol=len.total, nrow=len.total)
@@ -429,7 +533,7 @@ sensitivitySGL <- function(z, s, d, y, beta, tau, time.points,
 
     for(coeff0 in coeffs0) {
       if(is.infinite(beta[coeff0$i])) {
-        SCE.var[,coeff0$i,'analytic'] <- coeff0$Fas.var
+        SCE.var[coeff0$i,,'analytic'] <- coeff0$Fas.var
       } else {
         Gamma[2,2] <- coeff0$A1
         Gamma[b.col1,2] <- coeff0$B1
@@ -437,43 +541,19 @@ sensitivitySGL <- function(z, s, d, y, beta, tau, time.points,
         IGamma <- solve(Gamma/N)
         vartheta <- crossprod(IGamma, Omega) %*% IGamma / N
 
-        SCE.var[,coeff0$i,'analytic'] <- sapply(coeff0$dg, function(dg) {
+        SCE.var[coeff0$i,,'analytic'] <- sapply(coeff0$dg, function(dg) {
           (dg %*% vartheta %*% dg) }) / N + coeff1$Fas.var
       }
     }
-  }
-  
-  if(twoSidedTest) {
-    ci.probs <- c(ifelse(ci < 0.5, ci, 0), ifelse(ci < 0.5, 1, ci)) +
-      rep(ifelse(ci < 0.5, -ci/2, (1-ci)/2), times=length(ci))
-  } else {
-    ci.probs <- NULL
-  }
 
-  if(oneSidedTest) {
-    ci.probs <- c(ci.probs, ci)
-  }
-
-  ci.probs <- unique(ci.probs)
-  ci.probsLen <- length(ci.probs)
-
-  SCE.ci.dim <- c(ci.probsLen, SCE.var.dim)
-  SCE.ci.dimnames <- c(list(ci.probs=as.character(ci.probs)), SCE.var.dimnames)
-  
-  SCE.ci <- array(numeric(0),
-                  dim=SCE.ci.dim,
-                  dimnames=SCE.ci.dimnames)
-  
-  if(doAnalyticCi) {
-    SCE.rep <- rep.int(ci.probsLen, times=SCE.length)
-
-    SCE.ci[,,,'analytic'] <- array(rep.int(SCE, times=SCE.rep) + 
-                                   rep.int(qnorm(ci.probs), times=SCE.length) * 
+    SCE.ci[,,,'analytic'] <- array(rep.int(SCE, ci.probsLen) +
+                                   rep.int(qnorm(ci.probs),
+                                           rep.int(SCE.length, ci.probsLen)) *
                                    rep.int(sqrt(SCE.var[,,'analytic']),
-                                           times=SCE.rep),
-                                   dim=c(ci.probsLen, SCE.dim))
+                                           ci.probsLen),
+                                   dim=c(SCE.dim, ci.probsLen))
   }
-  
+    
   if(doBootStrapCi) {
     
     z.seq <- seq_len(N)
@@ -486,49 +566,49 @@ sensitivitySGL <- function(z, s, d, y, beta, tau, time.points,
                                    y=y[samp],
                                    beta=beta,
                                    tau=tau,
-                                   selection=TRUE,
-                                   groupings=c(FALSE,TRUE),
-                                   empty.principal.stratum=c(FALSE,TRUE),
-                                   trigger=TRUE,
                                    time.points=time.points,
+                                   groupings=GroupReverse, interval=interval,
                                    ci.method=NULL,
-                                   ci=GroupReverse)$SCE)
+                                   isSlaveMode=TRUE)$SCE)
       if(verbose) cat(".")
       return(ans)
     }
 
-    vals <- apply(do.call(rbind, lapply(integer(N.boot), FUN=bootCalc,
+    vals <- apply(rows <- do.call(rbind, lapply(integer(N.boot), FUN=bootCalc,
                                         z.seq=z.seq, nVal=N,
                                         beta=beta,
-                                        tau=tau,
+                                        tau=tau[1],
                                         time.points=time.points,
                                         current.fun=current.fun,
                                         verbose=verbose)),
                   2,
                   FUN=function(x) return(c(var(x), quantile(x, probs=ci.probs))))
+    N.bootActual <- nrow(rows)
     if(verbose) cat("\n")
 
     SCE.var.boot = vals[1,,drop=FALSE]
-    SCE.ci.boot = vals[-1,,drop=FALSE]
+    SCE.ci.boot = t(vals[-1,,drop=FALSE])
     
     dim(SCE.var.boot) <- SCE.dim
-    dim(SCE.ci.boot) <- c(ci.probsLen, SCE.dim)
+    dim(SCE.ci.boot) <- c(SCE.dim, ci.probsLen)
 
     SCE.var[,,'bootstrap'] <- SCE.var.boot
 
-    str(SCE.ci.boot)
-    str(SCE.ci)
     SCE.ci[,,,'bootstrap'] <- SCE.ci.boot
   }
 
-  tpIndex <- match(time.points, timePointsOrig)
-  betaIndex <- match(beta, betaOrig)
-  ans <- list(SCE=SCE[tpIndex,betaIndex,drop=FALSE],
-              SCE.var=SCE.var[tpIndex, betaIndex, ,drop=FALSE],
-              SCE.ci=SCE.ci[,tpIndex, betaIndex, , drop=FALSE],
-              beta=betaOrig)
+  ans <- list(SCE=SCE[betaIndex,tpIndex,drop=FALSE],
+              SCE.var=SCE.var[betaIndex, tpIndex, ,drop=FALSE],
+              SCE.ci=SCE.ci[betaIndex, tpIndex,,, drop=FALSE],
+              beta=betaOrig, alphahat=alphahat[betaIndex],
+              Fas0=FnAs0[betaIndex], Fas1=FnAs1)
+
+  if(doBootStrapCi) {
+    attr(ans, 'N.boot') <- N.boot
+    attr(ans, 'N.bootActual') <- N.bootActual
+  }
   
-  class(ans) <- "plot.sensitivity2.5d"
+  class(ans) <- c("sensitivity.1d", "sensitivity")
 
   return(ans)
 }
