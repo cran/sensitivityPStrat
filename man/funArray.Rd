@@ -7,19 +7,11 @@
   Creates a array of functions.
 }
 \usage{
-funArray(data = NA, dim = length(data), dimnames = NULL)
+funArray(\ldots)
 }
 \arguments{
-  \item{data}{
-    funVector; vector to turn into an array.
-  }
-  \item{dim}{
-    integer vector; vector of maximal indices for each dimension.
-  }
-  \item{dimnames}{
-    list of character vectors; either \code{NULL} or the names for each
-    dimension. One component for each dimension, either \code{NULL} or
-    the names for each dimension index.
+  \item{\ldots}{
+    passed to \code{\link{array}}. see arguments to \code{\link{array}}
   }
 }
 \author{
@@ -28,6 +20,6 @@ funArray(data = NA, dim = length(data), dimnames = NULL)
   Vanderbilt University\cr  
 }
 \seealso{
-  \code{\link{funVector}}, \code{\link{vector}}
+  \code{\link{funVector}}, \code{\link{funMatrix}}, \code{\link{array}}
 }
 \keyword{ classes }

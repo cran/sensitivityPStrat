@@ -89,14 +89,16 @@
 \examples{
 data(vaccine.trial)
 
-plot(with(vaccine.trial,
+ansJR<-with(vaccine.trial,
           sensitivityJR(z=treatment,s=hiv.outcome,y=logVL,
                     beta0=c(-1,-.75,-.5,-.25,0,.25,.5,.75,1),
                     beta1=c(-1,-.75,-.5,-.25,0,.25,.5,.75,1),
                     phi=c(0.95,0.90,0.80), selection="infected",
                     groupings=c("placebo","vaccine"),
                     N.boot=100)
-         ))
+         )
+
+plot(ansJR)
 
 }
 \keyword{ hplot }

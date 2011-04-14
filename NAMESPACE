@@ -3,7 +3,7 @@ useDynLib(sensitivityPStrat, .registration=TRUE)
 export(calc.v, sensitivityHHS, sensitivityGBH, sensitivityJR, sensitivitySGL,
        sensitivitySGD, plot.sensitivity.1.0d, plot.sensitivity.2.0d,
        plot.sensitivity.1.1d, print.sensitivity.0d, print.sensitivity.1d,
-       funVector, funArray)
+       funVector, funArray, funMatrix)
 
 import(graphics)
 import(stats)
@@ -13,6 +13,11 @@ S3method("[", funVector)
 S3method("[", funArray)
 S3method("[<-", funArray)
 S3method("[<-", funVector)
+S3method("cbind", funVector)
+S3method("rbind", funVector)
+S3method("c", funVector)
+S3method("names", funVector)
+S3method("dimnames", funVector)
 S3method(plot, sensitivity.2.0d)
 S3method(plot, sensitivity.1.0d)
 S3method(plot, sensitivity.1.1d)

@@ -225,6 +225,7 @@ sensitivitySGL <- function(z, s, d, y, v, beta, tau, time.points,
                            selection, trigger, groupings,
                            empty.principal.stratum, followup.time,
                            ci=0.95, ci.method=c("analytic", "bootstrap"),
+                           custom.FUN=NULL,
                            na.rm=FALSE, N.boot=100L, interval=c(-100,100),
                            oneSidedTest=FALSE, twoSidedTest=TRUE,
                            verbose=getOption("verbose"), isSlaveMode=FALSE) {
@@ -390,6 +391,10 @@ sensitivitySGL <- function(z, s, d, y, v, beta, tau, time.points,
   SCE.dimnames <- list(beta=as.character(beta),
                        time.points=as.character(time.points))
   SCE <- array(numeric(SCE.length), dim=SCE.dim, dimnames=SCE.dimnames)
+
+  if(!is.null(custom.FUN)) {
+    result <- array(numeric(SCE.length), dim=SCE.dim, dimnames=SCE.dimnames)
+  }
   
   if(!withoutCdfs) {
     FnAs0.length <- length(beta)
@@ -403,13 +408,21 @@ sensitivitySGL <- function(z, s, d, y, v, beta, tau, time.points,
   
   for(coeff0 in coeffs0) {
     SCE[coeff0$i,] <- coeff0$Fas - coeff1$Fas
+
+    if(!is.null(custom.FUN)) {
+      result[coeff0$i, ] <- custom.FUN(Fas0=coeff0$FnAs, Fas1=FnAs1, time.points=time.points, p0=p0, p1=p1)
+    }
+    
     if(!withoutCdfs) {
       FnAs0[coeff0$i] <- coeff0$FnAs
       alphahat[coeff0$i] <- coeff0$alphahat
     }
   }
 
-  if(withoutCdfs) return(list(SCE=SCE))
+  if(withoutCdfs) {
+    if(!is.null(custom.FUN)) return(list(SCE=SCE, result=result))
+    else return(list(SCE=SCE))
+  }
 
   if(GroupReverse && !isSlaveMode) {
     FnAs1 <- FnAs0
@@ -420,14 +433,19 @@ sensitivitySGL <- function(z, s, d, y, v, beta, tau, time.points,
   
   if(withoutCi) {
     if(isSlaveMode)
-      return(list(SCE=SCE, alphahat=alphahat, Fas0=FnAs0, Fas1=FnAs1))
+      if(!is.null(custom.FUN))
+        return(list(SCE=SCE, result=result, alphahat=alphahat,
+                    Fas0=FnAs0, Fas1=FnAs1))
+      else
+        return(list(SCE=SCE, alphahat=alphahat, Fas0=FnAs0, Fas1=FnAs1))
 
-      return(structure(list(SCE=SCE[betaIndex,tpIndex,drop=FALSE],
+    return(structure(c(list(SCE=SCE[betaIndex,tpIndex,drop=FALSE],
                             beta=betaOrig, alphahat=alphahat[betaIndex],
                             Fas0=FnAs0[betaIndex], Fas1=FnAs1),
-                       class=c("sensitivity.1d", "sensitivity"),
-                       parameters=list(z0=groupings[1], z1=groupings[2],
-                         selected=selection, trigger=trigger)))
+                       if(!is.null(custom.FUN)) list(result=result)),
+                     class=c("sensitivity.1d", "sensitivity"),
+                     parameters=list(z0=groupings[1], z1=groupings[2],
+                       selected=selection, trigger=trigger)))
   }
   
   if(twoSidedTest) {
@@ -459,6 +477,16 @@ sensitivitySGL <- function(z, s, d, y, v, beta, tau, time.points,
                   dim=SCE.ci.dim,
                   dimnames=SCE.ci.dimnames)
 
+  if(!is.null(custom.FUN)) {
+    result.var <- array(numeric(0),
+                        dim=SCE.var.dim,
+                        dimnames=SCE.var.dimnames)  
+    
+    result.ci <- array(numeric(0),
+                       dim=SCE.ci.dim,
+                       dimnames=SCE.ci.dimnames)
+  }    
+  
   if(doAnalyticCi) {
     Gamma <- Omega <- matrix(0, ncol=len.total, nrow=len.total)
 
@@ -560,48 +588,82 @@ sensitivitySGL <- function(z, s, d, y, v, beta, tau, time.points,
     current.fun <- sys.function()
 
     bootCalc <- function(i, z.seq, nVal, beta, tau, time.points,
-                         current.fun, verbose) {
+                         current.fun, custom.FUN, verbose) {
       samp <- .makeBootstrapLenIndx(s, indx.seq=z.seq, N=nVal)
-      ans <- as.vector(current.fun(z=z[samp], s=s[samp], d=d[samp],
-                                   y=y[samp],
-                                   beta=beta,
-                                   tau=tau,
-                                   time.points=time.points,
-                                   groupings=GroupReverse, interval=interval,
-                                   ci.method=NULL,
-                                   isSlaveMode=TRUE)$SCE)
+      ans <- current.fun(z=z[samp], s=s[samp], d=d[samp],
+                         y=y[samp],
+                         beta=beta,
+                         tau=tau,
+                         time.points=time.points,
+                         groupings=GroupReverse, interval=interval,
+                         custom.FUN=custom.FUN,
+                         ci.method=NULL,
+                         isSlaveMode=TRUE)
       if(verbose) cat(".")
-      return(ans)
+
+      if(!is.null(custom.FUN))
+        return(array(c(ans$SCE, ans$result), dim=c(1,length(ans$SCE), 2)))
+      else
+        return(array(c(ans$SCE), dim=c(1,length(ans$SCE), 1)))
     }
 
-    vals <- apply(rows <- do.call(rbind, lapply(integer(N.boot), FUN=bootCalc,
-                                        z.seq=z.seq, nVal=N,
-                                        beta=beta,
-                                        tau=tau[1],
-                                        time.points=time.points,
-                                        current.fun=current.fun,
-                                        verbose=verbose)),
-                  2,
+    vals <- do.call(rbind, lapply(integer(N.boot), FUN=bootCalc,
+                                                z.seq=z.seq, nVal=N,
+                                                beta=beta,
+                                                tau=tau[1],
+                                                time.points=time.points,
+                                                current.fun=current.fun,
+                                                custom.FUN=custom.FUN,
+                                                verbose=verbose))
+
+    N.bootActual <- nrow(vals)
+
+    if(!is.null(custom.FUN))
+      dim(vals) <- c(nrow(vals), ncol(vals) %/% 2L, 2L)
+    else
+      dim(vals) <- c(nrow(vals), ncol(vals), 1L)
+
+    vals <- apply(vals, c(2L, 3L),
                   FUN=function(x) return(c(var(x), quantile(x, probs=ci.probs))))
-    N.bootActual <- nrow(rows)
+    
     if(verbose) cat("\n")
 
-    SCE.var.boot = vals[1,,drop=FALSE]
-    SCE.ci.boot = t(vals[-1,,drop=FALSE])
+    SCE.var.boot = vals[1,,1L,drop=FALSE]
+    SCE.ci.boot = t(array(vals[-1,,1L,drop=FALSE], dim=c(nrow(vals)-1L, ncol(vals))))
     
+    if(!is.null(custom.FUN)) {
+      result.var.boot <- vals[1L,,2L]
+      result.ci.boot <- t(array(vals[-1L,,2L], dim=c(nrow(vals)-1L, ncol(vals))))
+    }      
+
     dim(SCE.var.boot) <- SCE.dim
     dim(SCE.ci.boot) <- c(SCE.dim, ci.probsLen)
 
     SCE.var[,,'bootstrap'] <- SCE.var.boot
 
     SCE.ci[,,,'bootstrap'] <- SCE.ci.boot
+
+    if(!is.null(custom.FUN)) {
+      str(result.var.boot)
+      str(result.ci.boot)
+      stopifnot(!all(is.na(result.var.boot)))
+      dim(result.var.boot) <- SCE.dim
+      result.var[,,"bootstrap"] <- result.var.boot
+
+      dim(result.ci.boot) <- c(SCE.dim, ci.probsLen)
+      result.ci[,,,"bootstrap"] <- result.ci.boot
+    }
   }
 
-  ans <- list(SCE=SCE[betaIndex,tpIndex,drop=FALSE],
-              SCE.var=SCE.var[betaIndex, tpIndex, ,drop=FALSE],
-              SCE.ci=SCE.ci[betaIndex, tpIndex,,, drop=FALSE],
-              beta=betaOrig, alphahat=alphahat[betaIndex],
-              Fas0=FnAs0[betaIndex], Fas1=FnAs1)
+  ans <- c(list(SCE=SCE[betaIndex,tpIndex,drop=FALSE],
+                SCE.var=SCE.var[betaIndex, tpIndex, ,drop=FALSE],
+                SCE.ci=SCE.ci[betaIndex, tpIndex,,, drop=FALSE]),
+           if(!is.null(custom.FUN))
+              list(result=result,
+                   result.var=result.var,
+                   result.ci=result.ci),
+           list(beta=betaOrig, alphahat=alphahat[betaIndex],
+                Fas0=FnAs0[betaIndex], Fas1=FnAs1))
 
   if(doBootStrapCi) {
     attr(ans, 'N.boot') <- N.boot

@@ -20,6 +20,6 @@ funVector(length = 0)
   Vanderbilt University\cr  
 }
 \seealso{
-  \code{\link{funArray}}, \code{\link{vector}}
+  \code{\link{funMatrix}}, \code{\link{funArray}}, \code{\link{vector}}
 }
 \keyword{ classes }

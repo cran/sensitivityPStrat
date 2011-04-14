@@ -135,12 +135,10 @@ sensitivityJR <- function(z, s, y, beta0, beta1, phi, Pi, psi,
                             dimnames=FnAs1.dimnames)
 
   if(!isSlaveMode) {
-    FnAs0 <- funArray(vector(mode='list', length=prod(FnAs0.dim)),
-                      dim=FnAs0.dim,
+    FnAs0 <- funArray(dim=FnAs0.dim,
                       dimnames=FnAs0.dimnames)
 
-    FnAs1 <- funArray(vector(mode='list', length=prod(FnAs1.dim)),
-                      dim=FnAs1.dim,
+    FnAs1 <- funArray(dim=FnAs1.dim,
                       dimnames=FnAs1.dimnames)
   }
 
@@ -200,9 +198,9 @@ sensitivityJR <- function(z, s, y, beta0, beta1, phi, Pi, psi,
         mu0[j,i] <- sum(y0.uniq * diff(c(0, Fas0)))
       }
 
-      if(!isSlaveMode)
+      if(!isSlaveMode) {
         FnAs0[j,i] <- stepfun(y0.uniq, c(0, Fas0))
-
+      }
     }
     
     for(j in seq_along(beta1)) {

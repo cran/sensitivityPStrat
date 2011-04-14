@@ -68,7 +68,7 @@ sensitivitySGD <- function(z, s, d, y, v, beta0, beta1, phi, Pi, psi, tau,
                            time.points, selection, trigger, groupings,
                            followup.time,
                            ci=0.95, ci.method=c("bootstrap", "analytic"),
-                           na.rm=FALSE, N.boot=100L, N.events=NULL,
+                           custom.FUN=NULL, na.rm=FALSE, N.boot=100L, N.events=NULL,
                            interval=c(-100,100),
                            oneSidedTest=FALSE, twoSidedTest=TRUE,
                            inCore=TRUE, verbose=getOption("verbose"),
@@ -261,6 +261,10 @@ sensitivitySGD <- function(z, s, d, y, v, beta0, beta1, phi, Pi, psi, tau,
 
   SCE <- array(numeric(SCE.length), dim=SCE.dim, dimnames=SCE.dimnames)
 
+  if(!is.null(custom.FUN)) {
+    result <- array(numeric(SCE.length), dim=SCE.dim, dimnames=SCE.dimnames)
+  }
+
   if(!withoutCdfs) {
     FnAs0.dim <- SCE.dim[c(-2L,-4L)]
     FnAs0.length <- prod(FnAs0.dim)
@@ -293,8 +297,12 @@ sensitivitySGD <- function(z, s, d, y, v, beta0, beta1, phi, Pi, psi, tau,
                                  time.points=time.points,
                                  selection=selection, trigger=trigger,
                                  groupings=FALSE, ci.method=ci.method,
-                                 isSlaveMode=TRUE, interval=interval)
+                                 custom.FUN=custom.FUN, isSlaveMode=TRUE, interval=interval)
 
+      if(!is.null(custom.FUN)) {
+        result[,,Pi.coeff$i,] <- SCE.info$result[rep.int(seq_along(beta0),
+                                                         times=length(beta1)),]
+      }
       if(!withoutCdfs) {
         alphahat0[,Pi.coeff$i] <- SCE.info$alphahat
         FnAs0[,Pi.coeff$i] <- SCE.info$Fas0
@@ -308,8 +316,13 @@ sensitivitySGD <- function(z, s, d, y, v, beta0, beta1, phi, Pi, psi, tau,
     for(beta0.coeff in Pi.coeff$beta0.coeff) {
       for(beta1.coeff in Pi.coeff$beta1.coeff) {
         SCE[beta0.coeff$i,beta1.coeff$i,Pi.coeff$i,] <- beta0.coeff$Fas - beta1.coeff$Fas
+        
+        if(!is.null(custom.FUN)) {
+          result[beta0.coeff$i,beta1.coeff$i,Pi.coeff$i,] <-
+            custom.FUN(Fas0=beta0.coeff$FnAs, Fas1=beta1.coeff$FnAs, time.points=time.points, p0=p0, p1=p1)
+        }
       }
-
+      
       if(!withoutCdfs) {
         FnAs0[beta0.coeff$i,Pi.coeff$i] <- beta0.coeff$FnAs
         alphahat0[beta0.coeff$i,Pi.coeff$i] <- beta0.coeff$alphahat
@@ -324,17 +337,23 @@ sensitivitySGD <- function(z, s, d, y, v, beta0, beta1, phi, Pi, psi, tau,
     }
   }
   
-  if(withoutCdfs)
-    return(list(SCE = SCE))
+  if(withoutCdfs && !is.null(custom.FUN)) return(list(SCE=SCE, result=result))
+  if(withoutCdfs) return(list(SCE = SCE))
 
   cdfs <- list(alphahat0=alphahat0, beta0=beta0, Fas0=FnAs0,
                alphahat1=alphahat1, beta1=beta1, Fas1=FnAs1,
                psi=psi, phi=phi, Pi=Pi, time.points=time.points)
 
   if(withoutCi) {
-    if(isSlaveMode) return(c(list(SCE = SCE), cdfs))
+    if(isSlaveMode) {
+      if(!is.null(custom.FUN))
+        return(c(list(SCE=SCE, result=result), cdfs))
+      else
+        return(c(list(SCE = SCE), cdfs))
+    }
 
-    return(structure(c(list(SCE=SCE), cdfs),
+    return(structure(c(list(SCE=SCE,
+                            result=if(!is.null(custom.FUN)) result else SCE), cdfs),
                      class=c("sensitivity.1d", "sensitivity"),
                      parameters=list(z0=groupings[1], z1=groupings[2],
                        selected=selection, trigger=trigger)))
@@ -366,6 +385,11 @@ sensitivitySGD <- function(z, s, d, y, v, beta0, beta1, phi, Pi, psi, tau,
     SCE.ci <- array(numeric(0),
                     dim=SCE.ci.dim,
                     dimnames=SCE.ci.dimnames)
+    if(!is.null(custom.FUN)) {
+      result.ci <- array(numeric(0),
+                         dim=SCE.ci.dim,
+                         dimnames=SCE.ci.dimnames)
+    }
   }
   
   SCE.var.dim <- c(SCE.dim, length(ci.method))
@@ -374,13 +398,23 @@ sensitivitySGD <- function(z, s, d, y, v, beta0, beta1, phi, Pi, psi, tau,
   SCE.var <- array(numeric(0),
                    dim=SCE.var.dim,
                    dimnames=SCE.var.dimnames)  
+  
+  if(!is.null(custom.FUN)) {
+    result.var <- array(numeric(0),
+                       dim=SCE.var.dim,
+                       dimnames=SCE.var.dimnames)
+  }
 
   if("analytic" %in% ci.method) {
     stop("Analytic method is not currently implemented")
   }
 
-  if(isSlaveMode)
+  if(isSlaveMode) {
+    if(!is.null(custom.FUN))
+      return(c(list(SCE=SCE, SCE.var=SCE.var, result=result), cdfs))
+    else
     return(c(list(SCE=SCE, SCE.var=SCE.var), cdfs))
+  }
   
   if("bootstrap" %in% ci.method) {
     current.fun <- sys.function()
@@ -397,43 +431,67 @@ sensitivitySGD <- function(z, s, d, y, v, beta0, beta1, phi, Pi, psi, tau,
 
     if(doFollowupMethod) {
       bootCalc <- function(i, z.seq, nVal, beta0, beta1, psi, tau, time.points,
-                           current.fun, verbose) {
+                           current.fun, custom.FUN, interval, verbose) {
         samp <- mkBsIndex(s, indx.seq=z.seq, N=nVal)
-        ans <- as.vector(current.fun(z=z[samp], s=s[samp], v=v[samp],
-                                     d=d[samp], y=y[samp],
-                                     beta0=beta0, beta1=beta1, psi=psi,
-                                     tau=tau, followup.time=followup.time,
-                                     time.points=time.points, interval=interval,
-                                     ci.method=NULL, isSlaveMode=TRUE)$SCE)
+        ans <- current.fun(z=z[samp], s=s[samp], v=v[samp],
+                           d=d[samp], y=y[samp],
+                           beta0=beta0, beta1=beta1, psi=psi,
+                           tau=tau, followup.time=followup.time,
+                           time.points=time.points, interval=interval,
+                           ci.method=NULL, custom.FUN=custom.FUN,
+                           isSlaveMode=TRUE)
         if(verbose) cat(".")
+        if(!is.null(custom.FUN))
+          return(array(c(ans$SCE, ans$result), dim=c(1,length(ans$SCE), 2)))
+        else
+          return(array(ans$SCE, dim=c(1,length(ans$SCE), 1)))
         return(ans)
       }
     } else {
       bootCalc <- function(i, z.seq, nVal, beta0, beta1, psi, tau, time.points,
-                           current.fun, verbose) {
+                           current.fun, custom.FUN, interval, verbose) {
         samp <- mkBsIndex(s, indx.seq=z.seq, N=nVal)
-        ans <- as.vector(current.fun(z=z[samp], s=s[samp], d=d[samp], y=y[samp],
-                                     beta0=beta0, beta1=beta1, psi=psi,
-                                     tau=tau, time.points=time.points,
-                                     interval=interval,
-                                     ci.method=NULL, isSlaveMode=TRUE)$SCE)
+        ans <- current.fun(z=z[samp], s=s[samp], d=d[samp], y=y[samp],
+                           beta0=beta0, beta1=beta1, psi=psi,
+                           tau=tau, time.points=time.points,
+                           interval=interval, custom.FUN=custom.FUN,
+                           ci.method=NULL, isSlaveMode=TRUE)
+        
         if(verbose) cat(".")
-        return(ans)
+        if(!is.null(custom.FUN))
+          return(array(c(ans$SCE, ans$result), dim=c(1,length(ans$SCE), 2)))
+        else
+          return(array(ans$SCE, dim=c(1,length(ans$SCE), 1)))
       }
     }
     if(inCore) {
-      vals <- apply(do.call(rbind, lapply(integer(N.boot), FUN=bootCalc,
-                                          z.seq=z.seq, nVal=nVal,
-                                          beta0=beta0, beta1=beta1,
-                                          psi=psi, tau=tau,
-                                          time.points=time.points,
-                                          current.fun=current.fun,
-                                          verbose=verbose)),
-                    2L,
+      vals <- do.call(rbind,
+                      lapply(integer(N.boot), FUN=bootCalc,
+                             z.seq=z.seq, nVal=nVal,
+                             beta0=beta0, beta1=beta1,
+                             psi=psi, tau=tau,
+                             time.points=time.points,
+                             current.fun=current.fun,
+                             custom.FUN=custom.FUN, interval=interval,
+                             verbose=verbose))
+
+      N.bootActual <- nrow(vals)
+      
+      if(!is.null(custom.FUN))
+        dim(vals) <- c(nrow(vals), ncol(vals) %/% 2L, 2L)
+      else
+        dim(vals) <- c(nrow(vals), ncol(vals), 1L)
+
+      vals <- apply(vals, c(2L,3L),
                     FUN=function(x) return(c(var(x), quantile(x, probs=ci.probs))))
 
-      SCE.boot <- list(SCE.var = vals[1L,,drop=FALSE],
-                       SCE.ci = t(vals[-1L,,drop=FALSE]))
+      SCE.var.boot <- vals[1L,,1L]
+      SCE.ci.boot <- t(array(vals[-1L,,1L], dim=c(nrow(vals)-1L,ncol(vals))))
+
+      if(!is.null(custom.FUN)) {
+        result.var.boot <- vals[1L,,2L]
+        result.ci.boot <- t(array(vals[-1L,,2L], dim=c(nrow(vals)-1L, ncol(vals))))
+      }      
     } else {
       colsPerFile <- as.integer(colsPerFile)
 
@@ -514,21 +572,33 @@ sensitivitySGD <- function(z, s, d, y, v, beta0, beta1, phi, Pi, psi, tau,
       if(verbose) cat('\n')
     }
 
-    dim(SCE.boot$SCE.var) <- SCE.dim
-    SCE.var[,,,,"bootstrap"] <- SCE.boot$SCE.var
+    dim(SCE.var.boot) <- SCE.dim
+    SCE.var[,,,,"bootstrap"] <- SCE.var.boot
 
-    dim(SCE.boot$SCE.ci) <- c(SCE.dim, ci.probsLen)
-    SCE.ci[,,,,,"bootstrap"] <- SCE.boot$SCE.ci
+    dim(SCE.ci.boot) <- c(SCE.dim, ci.probsLen)
+    SCE.ci[,,,,,"bootstrap"] <- SCE.ci.boot
+
+    if(!is.null(custom.FUN)) {
+      dim(result.var.boot) <- SCE.dim
+      result.var[,,,,"bootstrap"] <- result.var.boot
+
+      dim(result.ci.boot) <- c(SCE.dim, ci.probsLen)
+      result.ci[,,,,,"bootstrap"] <- result.ci.boot
+    }
   }
 
-  ans <- structure(c(list(SCE=SCE, SCE.ci=SCE.ci, SCE.var=SCE.var), cdfs,
-                     list(ci.probs=ci.probs)),
+  ans <- structure(c(list(SCE=SCE, SCE.ci=SCE.ci, SCE.var=SCE.var),
+                     if(!is.null(custom.FUN))
+                        list(result=result, result.ci=result.ci, result.var=result.var),
+                     cdfs, list(ci.probs=ci.probs)),
                    class=c("sensitivity.1d", "sensitivity"),
                    parameters=list(z0=groupings[1], z1=groupings[2],
                      selected=selection, trigger=trigger))
 
-  if('bootstrap' %in% ci.method)
+  if('bootstrap' %in% ci.method) {
     attr(ans, 'N.boot') <- N.boot
+    attr(ans, 'N.bootActual') <- N.bootActual
+  }
 
   return(ans)
 }

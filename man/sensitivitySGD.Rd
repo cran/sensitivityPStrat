@@ -14,8 +14,8 @@ sensitivitySGD(z, s, d, y, v, beta0, beta1, phi, Pi, psi, tau,
                time.points, selection, trigger, groupings,
                followup.time,
                ci=0.95, ci.method = c("bootstrap", "analytic"),
-               na.rm = FALSE, N.boot = 100L, N.events = NULL,
-               interval = c(-100, 100),
+               custom.FUN = NULL, na.rm = FALSE, N.boot = 100L,
+               N.events = NULL, interval = c(-100, 100),
                oneSidedTest = FALSE, twoSidedTest = TRUE, inCore = TRUE,
                verbose = getOption("verbose"), colsPerFile = 1000L,
                isSlaveMode = FALSE)
@@ -88,6 +88,12 @@ sensitivitySGD(z, s, d, y, v, beta0, beta1, phi, Pi, psi, tau,
     character;  method by which the confidence interval and
     variance are calculated.  Can be \dQuote{analytic} or
     \dQuote{bootstrap}. Currently only works for \dQuote{bootstrap}.
+  }
+  \item{custom.FUN}{
+    function; function to calculate custom result. \code{Fas0}, \code{Fas1},
+    \code{time.points}, \code{p0}, \code{p1} are available to be used as
+    arguments in the custom function.  The custom function must return a
+    vector of elements that is the same length as \code{time.points}.
   }
   \item{na.rm}{
     logical; indicates whether records that are invalid due to \code{NA}
@@ -216,5 +222,21 @@ sens.analysis<-with(vaccine.trial,
                           ci.method="bootstrap", N.boot=100)
                )
 sens.analysis
+
+
+sens.analysis2<-with(vaccine.trial,
+                sensitivitySGD(z=treatment, s=hiv.outcome, y=followup.yearsART,
+                          d=ARTinitiation, beta0=c(0,-.25,-.5),
+                          beta1=c(0, -.25, -.5), phi=c(0.95, 0.90), tau=3,
+                          time.points=c(2,3), selection="infected",
+                          trigger="initiated ART",
+                          groupings=c("placebo","vaccine"), ci=.95,
+                          custom.FUN=function(Fas0,Fas1,...,time.points) {
+                            Fas0(time.points) - Fas1(time.points)
+                          },
+                          ci.method="bootstrap", N.boot=100)
+               )
+sens.analysis2
+
 }
 

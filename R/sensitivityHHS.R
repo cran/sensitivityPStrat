@@ -177,7 +177,9 @@ sensitivityHHS <- function(z, s, y, bound=c("upper","lower"),
   if(!withoutCdfs) {
     FnAs0 <- funVector(ACE.length)
     names(FnAs0) <- ACE.dimnames
-    FnAs1 <- FnAs0
+
+    FnAs1 <- funVector(1L)
+    FnAs1[1] <- datObj$Fn1
   }
   
   if(DoUpper) {
@@ -185,8 +187,11 @@ sensitivityHHS <- function(z, s, y, bound=c("upper","lower"),
 
     ACE['upper'] <- UpperObj$ACE
 
-    if(!withoutCdfs)
+    if(!withoutCdfs) {
+      str(UpperObj$FnAs0)
+      str(FnAs0)
       FnAs0['upper'] <- UpperObj$FnAs0
+    }
   }
 
   if(DoLower) {
