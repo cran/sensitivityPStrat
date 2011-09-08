@@ -1,8 +1,9 @@
 sensitivityJR <- function(z, s, y, beta0, beta1, phi, Pi, psi,
                           selection, groupings, ci=0.95,
-                          ci.method=c("analytic", "bootstrap"), na.rm=FALSE,
+                          ci.method=c("analytic", "bootstrap"),
+                          ci.type="twoSided", custom.FUN=NULL, na.rm=FALSE,
                           N.boot=100, interval=c(-100,100),
-                          oneSidedTest = FALSE, twoSidedTest = TRUE,
+                          upperTest=FALSE, lowerTest=FALSE, twoSidedTest=TRUE,
                           verbose=getOption("verbose"), isSlaveMode=FALSE)
 {
   withoutCdfs <- isSlaveMode && !missing(ci.method) && is.null(ci.method)
@@ -10,6 +11,7 @@ sensitivityJR <- function(z, s, y, beta0, beta1, phi, Pi, psi,
                 (isSlaveMode && !(!missing(ci.method) &&
                                  !is.null(ci.method) &&
                                  'analytic' %in% ci.method)))
+  hasCustomFun <- !is.null(custom.FUN)
 
   calc.coefs <- function(y, beta, dF, RR, interval) {
     coefs <- vector(length(beta), "list")
@@ -34,7 +36,8 @@ sensitivityJR <- function(z, s, y, beta0, beta1, phi, Pi, psi,
                 .CheckLength(z=z, s=s, y=y),
                 .CheckZ(z, groupings, na.rm=na.rm),
                 .CheckS(s, na.rm=na.rm),
-                .CheckY(y, s, selection, na.rm=na.rm))
+                .CheckY(y, s, selection, na.rm=na.rm),
+                .CheckCi(ci=ci, ci.type=ci.type))
     
     if(length(ErrMsg) > 0L)
       stop(paste(ErrMsg, collapse="\n  "))
@@ -61,8 +64,19 @@ sensitivityJR <- function(z, s, y, beta0, beta1, phi, Pi, psi,
 
     if(length(ErrMsg) > 0L)
       stop(paste(ErrMsg, collapse="\n  "))
+
+    if(missing(ci.type)) {
+      ci.type <- rep('twoSided', length.out=length(ci))
+    } else {
+      ci.type <- match.arg(ci.type, c('upper', 'lower', 'twoSided'),
+                           several.ok=TRUE)
+    }
   }
 
+  test <- c(upper=upperTest, lower=lowerTest, twoSided=twoSidedTest)
+  n.test <- sum(test)
+  names.test <- names(test)[test]
+  
   if(withoutCi)
     ci.method <- NULL
   else if(isSlaveMode)
@@ -75,6 +89,9 @@ sensitivityJR <- function(z, s, y, beta0, beta1, phi, Pi, psi,
   
   y0 <- y[z0.s1]
   y1 <- y[z1.s1]
+
+  y0.mean <- mean(y0)
+  y1.mean <- mean(y1)
 
   N <- length(z)
   N0 <- sum(!z)
@@ -120,6 +137,9 @@ sensitivityJR <- function(z, s, y, beta0, beta1, phi, Pi, psi,
 
   ACE <- array(numeric(ACE.length), dim=ACE.dim, dimnames=ACE.dimnames)
 
+  if(hasCustomFun)
+    result <- ACE
+  
   FnAs0.dim <- ACE.dim[-2L]
   FnAs0.length <- prod(FnAs0.dim)
   FnAs0.dimnames <- ACE.dimnames[-2L]
@@ -149,7 +169,8 @@ sensitivityJR <- function(z, s, y, beta0, beta1, phi, Pi, psi,
     if(phi[i] == 1) {
       ACE.info <- sensitivityGBH(z=z,s=s,y=y,beta=beta0,
                                  groupings=FALSE,
-                                 ci.method=ci.method, isSlaveMode=TRUE)
+                                 ci.method=ci.method,
+                                 custom.FUN=custom.FUN, isSlaveMode=TRUE)
       
       if(!withoutCdfs) {
         alphahat0[,i] <- ACE.info$alphahat
@@ -159,6 +180,10 @@ sensitivityJR <- function(z, s, y, beta0, beta1, phi, Pi, psi,
       }        
       
       ACE[,,i] <- ACE.info$ACE
+
+      if(hasCustomFun)
+        result[,,i] <- ACE.info$result
+      
       next
     }
     
@@ -167,6 +192,9 @@ sensitivityJR <- function(z, s, y, beta0, beta1, phi, Pi, psi,
       alphahat0[,i] <- NA
       alphahat1[,i] <- NA
 
+      if(hasCustomFun)
+        result[,,i] <- NA
+      
       next
     }
     
@@ -233,36 +261,49 @@ sensitivityJR <- function(z, s, y, beta0, beta1, phi, Pi, psi,
         FnAs1[j,i] <- stepfun(y1.uniq, c(0, Fas1))
     }
 
+    if(hasCustomFun) {
+      for(j in seq_along(beta0)) {
+        for(k in seq_along(beta1)) {
+          result[j,k,i] <- custom.FUN(mu0=mu0[j,i], mu1=mu1[k,i], p0=p0, p1=p1)
+        }
+      }
+    }
+    
     ACE[,,i] <- outer(mu0[,i], mu1[,i], function(mu0, mu1) mu1 - mu0)
   }
   
   if(withoutCdfs)
-    return(list(ACE=ACE))
+    return(c(list(ACE=ACE),
+             if(hasCustomFun) list(result=result)))
 
   cdfs<-list(beta0=beta0, alphahat0=alphahat0, Fas0=FnAs0,
              beta1=beta1, alphahat1=alphahat1, Fas1=FnAs1,
              phi=phi, Pi=Pi, psi=psi)
 
   if(withoutCi)
-    return(c(list(ACE=ACE), cdfs))
+    return(c(list(ACE=ACE),
+             if(hasCustomFun) list(result=result),
+             cdfs))
   
   if(!isSlaveMode) {
-    if(twoSidedTest) {
-      if(ci < 0.5)
-        ci.probs <- c(ci, 1L) - ci/2L
-      else
-        ci.probs <- c(0L, ci) + (1-ci)/2
-    } else {
-      ci.probs <- NULL
-    }
-
-    if(oneSidedTest) {
-      ci.probs <- c(ci.probs, ci)
-    }
-
-    ci.probs <- sort(unique(ci.probs))
-    ci.probsLen <- length(ci.probs)
+    ci.map <- vector('list', length(ci.type))
+    names(ci.map) <- ci
   
+    for(i in seq_along(ci.type)) {
+      if(ci.type[i] == "upper")
+        ci.map[[i]] <- ci[i]
+      else if(ci.type[i] == "lower")
+        ci.map[[i]] <- 1 - ci[i]
+      else if(ci.type[i] == "twoSided")
+        if(ci[i] < 0.5)
+          ci.map[[i]] <- c(ci[i] - ci[i]/2, 1 - ci[i]/2)
+        else
+          ci.map[[i]] <- c((1-ci[i])/2, ci[i] + (1 - ci[i])/2)
+    }
+
+    ci.probs <- sort(unique(unlist(ci.map, recursive=TRUE, use.names=FALSE)))
+    ci.probsLen <- length(ci.probs)
+
     ACE.ci.dim <- c(ACE.dim, ci.probsLen, length(ci.method))
     ACE.ci.length <- prod(ACE.ci.dim)
     ACE.ci.dimnames <- c(ACE.dimnames,
@@ -270,8 +311,18 @@ sensitivityJR <- function(z, s, y, beta0, beta1, phi, Pi, psi,
                                 as.character(ci.probs*100)),
                               ci.method=ci.method))
   
+    ci.map <- lapply(ci.map, ci.probs=ci.probs,
+                     ci.prob.names=ACE.ci.dimnames$ci.probs,
+                     FUN=function(map, ci.probs, ci.prob.names) {
+                       ci.prob.names[match(map, ci.probs)]
+                     })
+    
     ACE.ci <- array(numeric(ACE.ci.length), dim=ACE.ci.dim,
                     dimnames=ACE.ci.dimnames)
+
+    if(hasCustomFun && 'bootstrap' %in% ci.method) {
+      result.ci <- ACE.ci[,,,,"bootstrap", drop=FALSE]
+    }
   }
   
   ACE.var.dim <- c(ACE.dim, length(ci.method))
@@ -281,6 +332,17 @@ sensitivityJR <- function(z, s, y, beta0, beta1, phi, Pi, psi,
   ACE.var <- array(numeric(ACE.var.length), dim=ACE.var.dim,
                    dimnames=ACE.var.dimnames)
 
+  ACE.p.dim <- c(ACE.dim, n.test, length(ci.method))
+  ACE.p.length <- prod(ACE.p.dim)
+  ACE.p.dimnames <- c(ACE.dimnames, list(test=names.test, ci.method=ci.method))
+  
+  ACE.p <- array(numeric(ACE.p.length), dim=ACE.p.dim, dimnames=ACE.p.dimnames)
+
+  if(hasCustomFun && 'bootstrap' %in% ci.method) {
+    result.var <- ACE.var[,,,"bootstrap", drop=FALSE]
+    result.p <- ACE.p[,,,,"bootstrap", drop=FALSE]
+  }
+  
   ## run bootstrap method
   if(any(ci.method == "analytic")) {
     if(verbose)
@@ -368,6 +430,8 @@ sensitivityJR <- function(z, s, y, beta0, beta1, phi, Pi, psi,
       ACE.ci[,,,,"analytic"] <- outer(seq_along(ACE), qnorm(ci.probs),
                                       FUN=calculateCi, ACE=ACE,
                                       sqrt.ACE.var=sqrt(ACE.var[,,,'analytic']))
+      ACE.p[,,,, 'analytic'] <- calc.pvalue(x=ACE, var=ACE.var[,,,'analytic'],
+                                            test=test)
     }
     
     if(verbose) cat("\n")
@@ -380,13 +444,20 @@ sensitivityJR <- function(z, s, y, beta0, beta1, phi, Pi, psi,
   if(any(ci.method == "bootstrap")) {
     if(verbose) cat("running Bootstrap")
     ACE.list <- array(dim=c(ACE.dim,N.boot))
+    if(hasCustomFun)
+      result.list <- ACE.list
     
     for(i in seq_len(N.boot)) {
       new.index <- sample(seq_len(N), N, replace=TRUE)
-      ACE.list[,,,i] <- Recall(z=z[new.index],s=s[new.index],y=y[new.index],
-                               beta0=beta0, beta1=beta1, psi=psi,
-                               groupings=FALSE,
-                               ci.method=NULL, isSlaveMode=TRUE)$ACE
+      ans <- Recall(z=z[new.index],s=s[new.index],y=y[new.index],
+                    beta0=beta0, beta1=beta1, psi=psi,
+                    groupings=FALSE, ci.method=NULL,
+                    custom.FUN=custom.FUN, isSlaveMode=TRUE)
+      ACE.list[,,,i] <- ans$ACE
+
+      if(hasCustomFun)
+        result.list[,,,i] <- ans$result
+      
       if(verbose) cat(".")
     }
 
@@ -395,17 +466,48 @@ sensitivityJR <- function(z, s, y, beta0, beta1, phi, Pi, psi,
         for(j in seq_along(beta1)) {
           ACE.ci[i,j,k,,'bootstrap'] <- quantile(ACE.list[i,j,k,], probs=ci.probs)
           ACE.var[i,j,k,'bootstrap'] <- var(ACE.list[i,j,k,])
+          lower <- mean(ACE.list[i,j,k,] > 0)
+          upper <- mean(ACE.list[i,j,k,] < 0)
+
+          if(upperTest)
+            ACE.p[i,j,k,'upper','bootstrap'] <- upper
+
+          if(lowerTest)
+            ACE.p[i,j,k,'lower','bootstrap'] <- lower
+
+          if(twoSidedTest)
+            ACE.p[i,j,k,'twoSided', 'bootstrap'] <- 2 * min(lower, upper)
+
+          if(hasCustomFun) {
+            result.ci[i,j,k,,'bootstrap'] <- quantile(result.list[i,j,k,], probs=ci.probs)
+            result.var[i,j,k,'bootstrap'] <- var(result.list[i,j,k,])
+            lower <- mean(result.list[i,j,k,] > 0)
+            upper <- mean(result.list[i,j,k,] < 0)
+
+            if(upperTest)
+              result.p[i,j,k,'upper','bootstrap'] <- upper
+
+            if(lowerTest)
+              result.p[i,j,k,'lower','bootstrap'] <- lower
+
+            if(twoSidedTest)
+              result.p[i,j,k,'twoSided', 'bootstrap'] <- 2 * min(lower, upper)
+          }
         }
       }
     }
     if(verbose) cat("\n")
   }
 
-  return(structure(c(list(ACE=ACE, ACE.ci=ACE.ci, ACE.var=ACE.var),
+  return(structure(c(list(ACE=ACE, ACE.ci=ACE.ci, ACE.var=ACE.var, ACE.p=ACE.p),
+                     if(hasCustomFun) list(result=result),
+                     if(hasCustomFun && 'bootstrap' %in% ci.method)
+                         list(result.ci=result.ci, result.var=result.var,
+                              result.p=result.p),
+                     list(ci.map=ci.map),
                      cdfs),
                    class=c("sensitivity.2.0d", "sensitivity.0d", "sensitivity"),
                    N.boot=N.boot,
                    parameters=list(z0=groupings[1], z1=groupings[2],
                      selected=selection)))
 }
-

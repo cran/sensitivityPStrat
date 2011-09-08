@@ -68,9 +68,10 @@ sensitivitySGD <- function(z, s, d, y, v, beta0, beta1, phi, Pi, psi, tau,
                            time.points, selection, trigger, groupings,
                            followup.time,
                            ci=0.95, ci.method=c("bootstrap", "analytic"),
-                           custom.FUN=NULL, na.rm=FALSE, N.boot=100L, N.events=NULL,
-                           interval=c(-100,100),
-                           oneSidedTest=FALSE, twoSidedTest=TRUE,
+                           ci.type="twoSided",
+                           custom.FUN=NULL, na.rm=FALSE, N.boot=100L,
+                           N.events=NULL, interval=c(-100,100),
+                           upperTest=FALSE, lowerTest=FALSE, twoSidedTest=TRUE,
                            inCore=TRUE, verbose=getOption("verbose"),
                            colsPerFile=1000L, isSlaveMode=FALSE) {
 
@@ -108,7 +109,8 @@ sensitivitySGD <- function(z, s, d, y, v, beta0, beta1, phi, Pi, psi, tau,
                 .CheckS(s, na.rm=na.rm),
                 .CheckY(y, s, selection, na.rm=na.rm),
                 .CheckD(d=d, s=s, selection=selection, na.rm=na.rm),
-                .CheckV(v=v, followup.time=followup.time, na.rm=na.rm))
+                .CheckV(v=v, followup.time=followup.time, na.rm=na.rm),
+                .CheckCi(ci=ci, ci.type=ci.type))
     
     if(length(ErrMsg) > 0L)
       stop(paste(ErrMsg, collapse="\n  "))
@@ -116,6 +118,13 @@ sensitivitySGD <- function(z, s, d, y, v, beta0, beta1, phi, Pi, psi, tau,
     ## Process tau
     if(length(tau) == 1) {
       tau <- c(tau, tau)
+    }
+
+    if(missing(ci.type)) {
+      ci.type <- rep('twoSided', length.out=length(ci))
+    } else {
+      ci.type <- match.arg(ci.type, c('upper', 'lower', 'twoSided'),
+                           several.ok=TRUE)
     }
 
     s <- s == selection
@@ -143,6 +152,10 @@ sensitivitySGD <- function(z, s, d, y, v, beta0, beta1, phi, Pi, psi, tau,
     z <- z == groupings[2L]
 
   }
+ 
+  test <- c(upper=upperTest, lower=lowerTest, twoSided=twoSidedTest)
+  n.test <- sum(test)
+  names.test <- names(test)[test]
 
   ## N  - number subjects
   ## N0 - number of subjects in group 0
@@ -360,20 +373,23 @@ sensitivitySGD <- function(z, s, d, y, v, beta0, beta1, phi, Pi, psi, tau,
   }
 
   if(!isSlaveMode) {
-    if(twoSidedTest) {
-      if(ci < 0.5)
-        ci.probs <- c(ci, 1L) - ci/2L
-      else
-        ci.probs <- c(0L, ci) + (1-ci)/2
-    } else {
-      ci.probs <- NULL
+    ci.map <- vector('list', length(ci.type))
+    names(ci.map) <- ci
+
+    for(i in seq_along(ci.type)) {
+      if(ci.type[i] == "upper"){
+        ci.map[[i]] <- ci[i]
+      } else if(ci.type[i] == "lower"){
+        ci.map[[i]] <- 1 - ci[i]
+      }else if(ci.type[i] == "twoSided") {
+        if(ci[i] < 0.5)
+          ci.map[[i]] <- c(ci[i] - ci[i]/2, 1 - ci[i]/2)
+        else
+          ci.map[[i]] <- c((1-ci[i])/2, ci[i] + (1 - ci[i])/2)
+      }
     }
 
-    if(oneSidedTest) {
-      ci.probs <- c(ci.probs, ci)
-    }
-
-    ci.probs <- unique(ci.probs)
+    ci.probs <- unique(unlist(ci.map, recursive=FALSE))
     ci.probsLen <- length(ci.probs)
 
     z.seq <- seq_len(N)
@@ -398,11 +414,22 @@ sensitivitySGD <- function(z, s, d, y, v, beta0, beta1, phi, Pi, psi, tau,
   SCE.var <- array(numeric(0),
                    dim=SCE.var.dim,
                    dimnames=SCE.var.dimnames)  
+
+  SCE.p.dim <- c(SCE.dim, n.test, length(ci.method))
+  SCE.p.dimnames <- c(SCE.dimnames,
+                      list(test=names.test, ci.method=ci.method))
+
+  SCE.p <- array(numeric(0),
+                 dim=SCE.p.dim,
+                 dimnames=SCE.p.dimnames)
   
   if(!is.null(custom.FUN)) {
     result.var <- array(numeric(0),
                        dim=SCE.var.dim,
                        dimnames=SCE.var.dimnames)
+    result.p <- array(numeric(0),
+                      dim=SCE.p.dim,
+                      dimnames=SCE.p.dimnames)
   }
 
   if("analytic" %in% ci.method) {
@@ -483,14 +510,22 @@ sensitivitySGD <- function(z, s, d, y, v, beta0, beta1, phi, Pi, psi, tau,
         dim(vals) <- c(nrow(vals), ncol(vals), 1L)
 
       vals <- apply(vals, c(2L,3L),
-                    FUN=function(x) return(c(var(x), quantile(x, probs=ci.probs))))
+                    FUN=function(x) return(c(var(x), mean(x > 0), mean(x < 0), quantile(x, probs=ci.probs))))
 
       SCE.var.boot <- vals[1L,,1L]
-      SCE.ci.boot <- t(array(vals[-1L,,1L], dim=c(nrow(vals)-1L,ncol(vals))))
+      SCE.ci.boot <- t(array(vals[-c(1L,2L,3L),,1L], dim=c(nrow(vals)-3L,ncol(vals))))
+      SCE.p.boot <- cbind(if(test['upper']) vals[3,,1L,drop=FALSE],
+                          if(test['lower']) vals[2,,1L,drop=FALSE],
+                          if(test['twoSided']) 2 * ifelse(vals[2,,1L,drop=FALSE] > vals[3,,1L,drop=FALSE],
+                                                          vals[3,,1L,drop=FALSE], vals[2,,1L,drop=FALSE]))
 
       if(!is.null(custom.FUN)) {
         result.var.boot <- vals[1L,,2L]
-        result.ci.boot <- t(array(vals[-1L,,2L], dim=c(nrow(vals)-1L, ncol(vals))))
+        result.ci.boot <- t(array(vals[-c(1L,2L,3L),,2L], dim=c(nrow(vals)-3L, ncol(vals))))
+        result.p.boot <- cbind(if(test['upper']) vals[3,,2L,drop=FALSE],
+                               if(test['lower']) vals[2,,2L,drop=FALSE],
+                               if(test['twoSided']) 2 * ifelse(vals[2,,2L,drop=FALSE] > vals[3,,1L,drop=FALSE],
+                                                               vals[3,,2L,drop=FALSE], vals[2,,1L,drop=FALSE]))
       }      
     } else {
       colsPerFile <- as.integer(colsPerFile)
@@ -578,19 +613,24 @@ sensitivitySGD <- function(z, s, d, y, v, beta0, beta1, phi, Pi, psi, tau,
     dim(SCE.ci.boot) <- c(SCE.dim, ci.probsLen)
     SCE.ci[,,,,,"bootstrap"] <- SCE.ci.boot
 
+    SCE.p[,,,,,"bootstrap"] <- SCE.p.boot
+
     if(!is.null(custom.FUN)) {
       dim(result.var.boot) <- SCE.dim
       result.var[,,,,"bootstrap"] <- result.var.boot
 
       dim(result.ci.boot) <- c(SCE.dim, ci.probsLen)
       result.ci[,,,,,"bootstrap"] <- result.ci.boot
+
+      SCE.p[,,,,,"bootstrap"] <- result.p.boot
     }
   }
 
-  ans <- structure(c(list(SCE=SCE, SCE.ci=SCE.ci, SCE.var=SCE.var),
+  ans <- structure(c(list(SCE=SCE, SCE.ci=SCE.ci, SCE.var=SCE.var, SCE.p=SCE.p),
                      if(!is.null(custom.FUN))
-                        list(result=result, result.ci=result.ci, result.var=result.var),
-                     cdfs, list(ci.probs=ci.probs)),
+                       list(result=result, result.ci=result.ci,
+                            result.var=result.var, result.p=result.p),
+                     cdfs, list(ci.map=ci.map)),
                    class=c("sensitivity.1d", "sensitivity"),
                    parameters=list(z0=groupings[1], z1=groupings[2],
                      selected=selection, trigger=trigger))

@@ -1,6 +1,7 @@
 plot.sensitivity.1.0d <- function(x, xlim, ylim,
                                   xlab=expression(beta), ylab='ACE',
                                   display = c("analytic", "bootstrap"),
+                                  ci.select=1,
                                   col='black', line.col=col, point.col=col,
                                   analytic.col="red",
                                   analytic.line.col=analytic.col,
@@ -11,8 +12,13 @@ plot.sensitivity.1.0d <- function(x, xlim, ylim,
                                   panel.last=NULL,
                                   type='l', ...) {
 
+  if(is.character(ci.select) && ci.select == 'all')
+    ci.select <- seq_along(x$ci.map)
+  
   display <- match.arg(display, several.ok=TRUE)
 
+  ci.map <- x$ci.map
+  
   sortIndx <- sort.list(x$beta)
   beta <- x$beta[sortIndx]
   ACE <- x$ACE[sortIndx]
@@ -34,7 +40,10 @@ plot.sensitivity.1.0d <- function(x, xlim, ylim,
   }
 
   if(missing(xlim)) {
-    xlim <- range(beta, finite=TRUE)
+    if(length(beta.fin) > 0L)
+      xlim <- range(beta, finite=TRUE)
+    else
+      xlim <- c(-1,1)
   }
   
   indx <- match(beta.inf, c(-Inf, Inf))
@@ -47,21 +56,43 @@ plot.sensitivity.1.0d <- function(x, xlim, ylim,
 
   ##  doBootstrap
   if('analytic' %in% display && 'analytic' %in% colnames(x$ACE.var)) {
-    for(i in seq_len(dim(ACE.ci.fin)[[2]])) {
-      lines(x=beta.fin, y=ACE.ci.fin[, i, 'analytic'], lty=2,
-            col=analytic.line.col)
+    for(j in ci.select) {
+      this.col <- analytic.line.col[((j-1L) %% length(analytic.line.col)) + 1L]
+      if(length(finIndx) > 0)
+        for(i in ci.map[[j]]) {
+          lines(x=beta.fin, y=ACE.ci.fin[, i, 'analytic'], lty=2, col=this.col)
+        }
     }
-    points(x=rep.int(inf.x, times=dim(ACE.ci.fin)[[2]]),
-           y=ACE.ci.inf[,indx, "analytic"], pch=3, col=analytic.point.col)
+    
+    for(j in ci.select) {
+      this.col = analytic.point.col[((j-1L) %% length(analytic.point.col)) + 1L]
+      if(length(infIndx) > 0)
+        points(x=rep.int(inf.x, times=length(ci.map[[j]])),
+               y=ACE.ci.inf[ci.map[[j]], indx, "analytic"], pch=3,
+               col=this.col)
+    }
   }
 
   if('bootstrap' %in% colnames(x$ACE.var) && 'bootstrap' %in% display) {
-    for(i in seq_len(dim(ACE.ci.fin)[[2]])) {
-      lines(x=beta.fin, y=ACE.ci.fin[,i,"bootstrap"], lty=2,
-            col=bootstrap.line.col)
+    for(j in ci.select) {
+      if(length(finIndx) > 0) {
+        this.col <- bootstrap.line.col[(j-1L) %% length(bootstrap.line.col)
+                                       + 1L]
+        for(i in ci.map[[j]]) {
+          lines(x=beta.fin, y=ACE.ci.fin[,i,"bootstrap"], lty=2,
+                col=this.col)
+        }
+      }
     }
-    points(x=rep(inf.x, times=dim(ACE.ci.fin)[[2]]),
-           y=ACE.ci.inf[,indx,"bootstrap"], pch=3, col=bootstrap.point.col)
+
+    for(j in ci.select) {
+      if(length(infIndx) > 0) {
+        this.col <- bootstrap.point.col[(j-1L) %% length(bootstrap.point.col)
+                                       + 1L]
+        points(x=rep(inf.x, times=length(ci.map[[j]])),
+               y=ACE.ci.inf[indx,ci.map[[j]],"bootstrap"], pch=3, col=this.col)
+      }
+    }
   }
 }
 

@@ -4,14 +4,14 @@
   Calculates the v matrix used in the estimation of standard errors in sensitivitySGL.
 }
 \description{
-  Calculates the v matrix.
+  Calculates the v matrix used in the estimation of standard errors in sensitivitySGL.
 }
 \usage{
 calc.v(event, time)
 }
 \arguments{
   \item{event}{
-    logical vector indicating whether and event has happend.
+    logical vector indicating whether and event has happened.
   }
   \item{time}{
     vector; time until event or observation halted.
@@ -21,7 +21,10 @@ calc.v(event, time)
   returns a matrix.
 }
 \references{
- ~put references to the literature/web site here ~
+  Shepherd BE, Gilbert PB, Lumley T (2007), \dQuote{Sensitivity analyses
+  comparing time-to-event outcomes existing only in a subset selected
+  postrandomization,} Journal of the American Statistical Association
+  102, 573-582.
 }
 \author{
   Bryan E. Shepherd \cr

@@ -1,3 +1,4 @@
+options(warn=2)
 library(sensitivityPStrat)
 
 data(vaccine.trial)

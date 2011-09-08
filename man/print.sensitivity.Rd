@@ -7,7 +7,7 @@
   prints the results of calls to the sensitivity functions.
 }
 \description{
-  Print the prints sensitivityPStrat objects in a visual understanable way.
+  Print the prints sensitivityPStrat objects in a visually understandable way.
 }
 
 \usage{

@@ -315,3 +315,16 @@
   }
     
 }
+
+.CheckCi <- function(ci, ci.type) {
+  ErrMsg <- NULL
+  if(!missing(ci.type) && ((missing(ci) && length(ci.type == 1L)) ||
+                            (length(ci.type) != length(ci))))
+    ErrMsg <- c(ErrMsg, "if 'ci.type' is specified it must be the same length as 'ci'")
+  if(!missing(ci.type) && any(fail <- pmatch(ci.type, c('upper','lower','twoSided'), nomatch=0, duplicates.ok=TRUE) == 0))
+    ErrMsg <- c(ErrMsg,
+                paste("'ci.type' values ",
+                      paste(dQuote(ci.type[which(fail)]), collapse=', '),
+                      " are not valid 'ci.type' values"))
+  return(ErrMsg)
+}
