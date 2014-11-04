@@ -2,10 +2,10 @@
 
 .funVectorFun <- function(...) {
   lapply(.Data.list, FUN=function(.estimatorFunction, ...) {
-    if(is.null(.estimatorFunction) || (mode(.estimatorFunction) != "closure" && is.na(.estimatorFunction)))
+    if(is.null(.estimatorFunction) || !is.function(.estimatorFunction))
       return(logical())
     .estimatorFunction(...)
-  })
+  }, ...)
 }
 
 makeFunVector <- function(data) {

@@ -16,7 +16,7 @@ ans<-with(vaccine.trial,
                     selection="infected",
                     groupings=c("placebo","vaccine"),
                     empty.principal.stratum=c("not infected","infected"),
-                    N.boot=1000)
+                    N.boot=50)
          )
 ans
 
@@ -30,7 +30,7 @@ ans<-with(vaccine.trial,
                     selection="infected",
                     groupings=c("placebo","vaccine"),
                     empty.principal.stratum=c("not infected","infected"),
-                    N.boot=1000)
+                    N.boot=50)
          )
 ans
 
@@ -45,7 +45,7 @@ ans<-with(vaccine.trial,
                     groupings=c("placebo","vaccine"),
                     empty.principal.stratum=c("not infected","infected"),
                     ci.method="bootstrap",
-                    N.boot=1000)
+                    N.boot=50)
          )
 ans
 stopifnot(is.list(ans))
@@ -59,7 +59,7 @@ ans<-with(vaccine.trial,
                     groupings=c("placebo","vaccine"),
                     empty.principal.stratum=c("not infected","infected"),
                     ci.method="bootstrap",
-                    N.boot=1000)
+                    N.boot=50)
          )
 ans
 
@@ -74,7 +74,7 @@ ans<-with(vaccine.trial,
                     groupings=c("placebo","vaccine"),
                     empty.principal.stratum=c("not infected","infected"),
                     ci.method="bootstrap",
-                    N.boot=1000)
+                    N.boot=50)
          )
 ans
 stopifnot(is.list(ans))
@@ -89,7 +89,7 @@ ans<-with(vaccine.trial,
                     ci.method="bootstrap",
                     method=c("ACE","T1","T2"),
                     empty.principal.stratum=c("not infected","infected"),
-                    N.boot=1000)
+                    N.boot=50)
          )
 ans
 
@@ -105,7 +105,7 @@ ans<-with(vaccine.trial,
                     ci.method="bootstrap",
                     method=c("ACE","T1","T2"),
                     empty.principal.stratum=c("not infected","infected"),
-                    N.boot=1000)
+                    N.boot=50)
          )
 ans
 
@@ -119,6 +119,6 @@ ans<-with(vaccine.trial.withNA,
                     selection="infected",
                     groupings=c("placebo","vaccine"),
                     empty.principal.stratum=c("not infected","infected"),
-                    na.rm=TRUE, N.boot=1000)
+                    na.rm=TRUE, N.boot=50)
          )
 ans

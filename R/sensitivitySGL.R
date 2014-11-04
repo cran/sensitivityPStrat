@@ -193,7 +193,7 @@
     dg <- matrix(0, ncol=length(q.index), nrow=dg.nrow,
                  dimnames=list(NULL, names(q.list)))
     
-    dg[seq.int(from=0L, along=q.index)*dg.nrow + q.index + 2] <- 1
+    dg[seq.int(from=0L, along.with=q.index)*dg.nrow + q.index + 2] <- 1
     dg <- as.data.frame(dg)
   } else {
     if(RR > 1L)

@@ -19,7 +19,7 @@ sens.analysis<-with(vaccine.trial,
                           time.points=c(2,3), selection="infected",
                           trigger="initiated ART",
                           groupings=c("placebo","vaccine"), ci=.95,
-                          ci.method="bootstrap", N.boot=1000)
+                          ci.method="bootstrap", N.boot=50)
                )
 stopifnot(is.list(sens.analysis))
 stopifnot(inherits(sens.analysis,"sensitivity"))
@@ -43,7 +43,7 @@ sens.analysis<-with(vaccine.trial.withNA,
                           time.points=c(2,3), selection="infected",
                           trigger="initiated ART",
                           groupings=c("placebo","vaccine"), ci=.95, na.rm=TRUE,
-                          ci.method="bootstrap", N.boot=100)
+                          ci.method="bootstrap", N.boot=50)
                )
 sens.analysis
 
@@ -58,7 +58,7 @@ sens.analysis<-with(vaccine.trial,
                           time.points=c(2,3), selection="infected",
                           trigger="initiated ART",
                           groupings=c("placebo","vaccine"), ci=.95,
-                          ci.method="bootstrap", N.boot=100)
+                          ci.method="bootstrap", N.boot=50)
                )
 sens.analysis
 
@@ -73,7 +73,7 @@ sens.analysis<-with(vaccine.trial.withNA,
                           time.points=c(2,3), selection="infected",
                           trigger="initiated ART",
                           groupings=c("placebo","vaccine"), ci=.95,
-                          ci.method="bootstrap", N.boot=100, na.rm=TRUE)
+                          ci.method="bootstrap", N.boot=50, na.rm=TRUE)
                )
 sens.analysis
 

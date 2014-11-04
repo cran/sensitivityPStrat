@@ -222,9 +222,9 @@ sensitivityJR(z, s, y, beta0, beta1, phi, Pi, psi,
 data(vaccine.trial)
 ansJR<-with(vaccine.trial,
           sensitivityJR(z=treatment,s=hiv.outcome,y=logVL,
-                    beta0=c(-1,-.75,-.5,-.25,0,.25,.5,.75,1),
-                    beta1=c(-1,-.75,-.5,-.25,0,.25,.5,.75,1),
-                    phi=c(0.95,0.90,0.80), selection="infected",
+                    beta0=c(-1,-.5,0,.5,1),
+                    beta1=c(-1,-.5,0,.5,1),
+                    phi=c(0.95,0.9), selection="infected",
                     groupings=c("placebo","vaccine"),
                     N.boot=100)
          )
@@ -233,9 +233,9 @@ ansJR
 data(vaccine.trial)
 ansJR<-with(vaccine.trial,
           sensitivityJR(z=treatment,s=hiv.outcome,y=logVL,
-                    beta0=c(-1,-.75,-.5,-.25,0,.25,.5,.75,1),
-                    beta1=c(-1,-.75,-.5,-.25,0,.25,.5,.75,1),
-                    phi=c(0.95,0.90,0.80), selection="infected",
+                    beta0=c(-1,-.5,0,.5,1),
+                    beta1=c(-1,-.5,0,.5,1),
+                    phi=c(0.95,0.9), selection="infected",
                     groupings=c("placebo","vaccine"),
                     custom.FUN=function(mu0, mu1, ...) mu1 - mu0,
                     upperTest=TRUE, lowerTest=TRUE, twoSidedTest=TRUE,

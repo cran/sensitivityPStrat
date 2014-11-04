@@ -15,9 +15,9 @@ ansJR<-with(vaccine.trial,
           sensitivityJR(z=treatment,s=hiv.outcome,y=logVL,
                     beta0=c(-1,-.75,-.5,-.25,0,.25,.5,.75,1),
                     beta1=c(-1,-.75,-.5,-.25,0,.25,.5,.75,1),
-                    phi=c(0.95,0.90,0.80, 1), selection="infected",
+                    phi=c(0.95,1), selection="infected",
                     groupings=c("placebo","vaccine"),
-                    N.boot=1000)
+                    N.boot=50)
          )
 ansJR
 
@@ -31,9 +31,9 @@ ansJR<-with(vaccine.trial.withNA,
           sensitivityJR(z=treatment,s=hiv.outcome,y=logVL,
                     beta0=c(-1,-.75,-.5,-.25,0,.25,.5,.75,1),
                     beta1=c(-1,-.75,-.5,-.25,0,.25,.5,.75,1),
-                    phi=c(0.95,0.90,0.80, 1), selection="infected",
+                    phi=c(0.95, 1), selection="infected",
                     groupings=c("placebo","vaccine"), na.rm=TRUE,
-                    N.boot=100)
+                    N.boot=50)
          )
 ansJR
 

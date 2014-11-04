@@ -18,7 +18,7 @@ sens.time<-with(vaccine.trial,
                           time.points=c(2,3), selection="infected",
                           trigger="initiated ART", groupings=c("placebo","vaccine"),
                           empty.principal.stratum=c("not infected","infected"),
-                          N.boot=1000)
+                          N.boot=50)
                )
 stopifnot(is.list(sens.time))
 stopifnot(inherits(sens.time,"sensitivity"))
@@ -36,7 +36,7 @@ sens.time<-with(vaccine.trial.withNA,
                           time.points=c(2,3), selection="infected",
                           trigger="initiated ART", groupings=c("placebo","vaccine"),
                           empty.principal.stratum=c("not infected","infected"),
-                          na.rm=TRUE, N.boot=100)
+                          na.rm=TRUE, N.boot=50)
                )
 sens.time
 
@@ -48,7 +48,7 @@ sens.time<-with(vaccine.trial,
                           time.points=c(2,3), selection="infected",
                           trigger="initiated ART", groupings=c("placebo","vaccine"),
                           empty.principal.stratum=c("not infected","infected"),
-                          N.boot=100)
+                          N.boot=50)
                )
 sens.time
 
@@ -60,7 +60,7 @@ sens.time<-with(vaccine.trial.withNA,
                           time.points=c(2,3), selection="infected",
                           trigger="initiated ART", groupings=c("placebo","vaccine"),
                           empty.principal.stratum=c("not infected","infected"),
-                          N.boot=100, na.rm=TRUE)
+                          N.boot=50, na.rm=TRUE)
                )
 sens.time
 

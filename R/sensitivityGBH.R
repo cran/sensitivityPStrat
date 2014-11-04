@@ -144,7 +144,7 @@ sensitivityGBH <- function(z, s, y, beta, selection, groupings,
   calc.alphaAndW <- function(beta, y, dF, C, interval) {
     alphahat <- .calc.alphahat(beta.y=beta*y, dF=dF, C=C, interval=interval)
     
-    w <- .calc.w(alpha=alphahat, beta=beta*y)
+    w <- .calc.w(alpha=alphahat, beta.y=beta*y)
     return(c(alphahat, w))
   }
 

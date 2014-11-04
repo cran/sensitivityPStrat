@@ -155,8 +155,8 @@ plot.sensitivity.2.0d <- function(x, xlim, ylim,
 
     contour(beta0.fin,beta1.fin,reject.fin[,,i],add=TRUE, lty=3,
             levels=seq(from=-1, to=1, length.out=21),,labcex=0.8, axes=FALSE)
-    axis(side=1,at=beta0,label=format(beta0, digits=1,trim=TRUE,drop0trailing=TRUE), line=NA)
-    axis(side=2,at=beta1,label=format(beta1, digits=1,trim=TRUE,drop0trailing=TRUE), line=NA)
+    axis(side=1,at=beta0,labels=format(beta0, digits=1,trim=TRUE,drop0trailing=TRUE), line=NA)
+    axis(side=2,at=beta1,labels=format(beta1, digits=1,trim=TRUE,drop0trailing=TRUE), line=NA)
   }
   
 #  inf.x <- par('usr')[indx] + strwidth("m")/c(2,-2)[indx]
